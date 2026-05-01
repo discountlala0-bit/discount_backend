@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../lib/prisma.js';
-import { verifyToken } from '../../lib/jwt.js';
+import { verifyToken, buildUserPayload } from '../../lib/jwt.js';
 import { admin } from '../../config/firebaseAdmin.js';
 
 function isValidE164(phone) {
@@ -110,52 +110,13 @@ export const sendOtp = async (req, res) => {
 export const verifyOTP = async (req, res) => {
   const { sessionInfo, otp } = req.body;
 
-  if (!sessionInfo || !otp) {
-    return res.status(400).json({ error: 'sessionInfo and otp are required' });
-  }
+  const { idToken } = await firebaseVerifyOtp(sessionInfo, otp);
 
-  try {
-    const { idToken, localId, phoneNumber } = await firebaseVerifyOtp(sessionInfo, otp);
-
-    let user = await prisma.user.findUnique({
-      where: { firebaseUid: localId },
-    });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          firebaseUid: localId,
-          phoneNumber,
-        },
-      });
-    }
-
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-    const token = jwt.sign(
-      {
-        id: user.id,
-        firebaseUid: user.firebaseUid,
-        phoneNumber: user.phoneNumber,
-      },
-      jwtSecret,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      success: true,
-      message: 'User verified successfully',
-      firebaseIdToken: idToken,
-      token,
-      user: {
-        id: user.id,
-        phoneNumber: user.phoneNumber,
-        firebaseUid: user.firebaseUid,
-      },
-    });
-  } catch (err) {
-    console.error('OTP verification failed:', err.message);
-    res.status(401).json({ error: err.message });
-  }
+  res.status(200).json({
+    success: true,
+    message: 'OTP verified successfully',
+    firebaseIdToken: idToken,
+  });
 };
 
 export const verifyIdToken = async (req, res) => {
@@ -175,9 +136,10 @@ export const verifyIdToken = async (req, res) => {
   });
 
   if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: 'Please register first',
+    return res.status(200).json({
+      isNewUser: true,
+      firebaseUid: decoded.uid,
+      phoneNumber: decoded.phone_number,
     });
   }
 
@@ -193,7 +155,47 @@ export const verifyIdToken = async (req, res) => {
   );
 
   res.json({
+    isNewUser: false,
+    token,
+    user,
+  });
+};
+
+export const register = async (req, res) => {
+  const { firebaseIdToken, email, name } = req.body;
+
+  const decoded = await firebaseVerifyIdToken(firebaseIdToken);
+
+  const existingUser = await prisma.user.findUnique({
+    where: { firebaseUid: decoded.uid },
+  });
+
+  if (existingUser) {
+    return res.status(400).json({ error: 'User already exists' });
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      firebaseUid: decoded.uid,
+      phoneNumber: decoded.phone_number,
+      email,
+      name,
+    },
+  });
+
+  const token = jwt.sign(
+    {
+      id: user.id,
+      firebaseUid: user.firebaseUid,
+      phoneNumber: user.phoneNumber,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.status(201).json({
     success: true,
+    message: 'User registered successfully',
     token,
     user,
   });
