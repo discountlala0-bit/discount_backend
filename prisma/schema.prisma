@@ -8,13 +8,295 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  firebaseUid String   @unique @map("firebase_uid")
-  phoneNumber String   @unique @map("phone_number")
-  email       String?  @unique
-  name        String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  firebaseUid  String   @unique @map("firebase_uid")
+  phoneNumber  String   @unique @map("phone_number")
+  email        String?  @unique
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  referralCode String?  @unique @map("referral_code")
+  referredBy   String?  @map("referred_by")
+  role         String   @default("user")
+
+  carts             Cart[]
+  orders            Order[]
+  userCoupons       UserCoupon[]
+  referralsMade     ReferralLog[] @relation("Referrer")
+  referralsReceived ReferralLog[] @relation("ReferredUser")
 
   @@map("users")
+}
+
+model City {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  state     String
+  country   String   @default("India")
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  booklet   Booklet?
+  addOns    AddOn[]
+
+  @@map("cities")
+}
+
+model Booklet {
+  id                String            @id @default(uuid())
+  cityId            String            @unique @map("city_id")
+  title             String
+  description       String?
+  price             Float
+  validity          Int               @default(365)
+  image             String?
+  status            String            @default("active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  bookletOffers     BookletOffer[]
+  bookletCategories BookletCategory[]
+
+  @@map("booklets")
+}
+
+model Offer {
+  id            String         @id @default(uuid())
+  title         String
+  description   String?
+  price         Float
+  validity      Int?
+  timing        String?
+  maxPeople     Int?           @map("max_people")
+  placeId       String         @map("place_id")
+  offerType     String         @default("add_on") @map("offer_type")
+  status        String         @default("active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  place         Place          @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  bookletOffers BookletOffer[]
+  addOnOffers   AddOnOffer[]
+  userCoupons   UserCoupon[]
+
+  @@map("offers")
+}
+
+model BookletOffer {
+  id        String  @id @default(uuid())
+  bookletId String  @map("booklet_id")
+  offerId   String  @map("offer_id")
+  booklet   Booklet @relation(fields: [bookletId], references: [id], onDelete: Cascade)
+  offer     Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([bookletId, offerId])
+  @@map("booklet_offers")
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique @map("user_id")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id       String @id @default(uuid())
+  cartId   String @map("cart_id")
+  itemType String @map("item_type")
+  itemId   String @map("item_id")
+  cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+}
+
+model Order {
+  id              String                  @id @default(uuid())
+  userId          String                  @map("user_id")
+  totalAmount     Float                   @map("total_amount")
+  status          String                  @default("pending")
+  distributorId   String?                 @map("distributor_id")
+  referralApplied Boolean                 @default(false) @map("referral_applied")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  user            User                    @relation(fields: [userId], references: [id])
+  distributor     Distributor?            @relation(fields: [distributorId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  commissions     DistributorCommission[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id       String @id @default(uuid())
+  orderId  String @map("order_id")
+  itemType String @map("item_type")
+  itemId   String @map("item_id")
+  price    Float
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  orderId       String   @map("order_id")
+  paymentStatus String   @default("pending") @map("payment_status")
+  paymentMethod String?  @map("payment_method")
+  transactionId String?  @map("transaction_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model UserCoupon {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  offerId    String    @map("offer_id")
+  status     String    @default("active")
+  expiresAt  DateTime? @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  redeemedAt DateTime? @map("redeemed_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offer      Offer     @relation(fields: [offerId], references: [id])
+
+  @@unique([userId, offerId])
+  @@map("user_coupons")
+}
+
+model ReferralLog {
+  id             String   @id @default(uuid())
+  referrerId     String   @map("referrer_id")
+  referredUserId String   @map("referred_user_id")
+  rewardStatus   String   @default("pending") @map("reward_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+  referrer       User     @relation("Referrer", fields: [referrerId], references: [id])
+  referredUser   User     @relation("ReferredUser", fields: [referredUserId], references: [id])
+
+  @@unique([referrerId, referredUserId])
+  @@map("referral_logs")
+}
+
+model Distributor {
+  id                   String                  @id @default(uuid())
+  name                 String
+  phone                String                  @unique
+  email                String?                 @unique
+  referralCode         String                  @unique @map("referral_code")
+  commissionPercentage Float                   @default(0) @map("commission_percentage")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+  orders               Order[]
+  commissions          DistributorCommission[]
+
+  @@map("distributors")
+}
+
+model DistributorCommission {
+  id               String      @id @default(uuid())
+  distributorId    String      @map("distributor_id")
+  orderId          String      @map("order_id")
+  commissionAmount Float       @map("commission_amount")
+  status           String      @default("pending")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  distributor      Distributor @relation(fields: [distributorId], references: [id])
+  order            Order       @relation(fields: [orderId], references: [id])
+
+  @@map("distributor_commissions")
+}
+
+model Category {
+  id                String            @id @default(uuid())
+  name              String            @unique
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  bookletCategories BookletCategory[]
+  addOnCategories   AddOnCategory[]
+  places            Place[]
+
+  @@map("categories")
+}
+
+model Place {
+  id          String   @id @default(uuid())
+  name        String
+  categoryId  String   @map("category_id")
+  address     String?
+  phone       String?
+  description String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  offers      Offer[]
+
+  @@map("places")
+}
+
+model BookletCategory {
+  id         String   @id @default(uuid())
+  bookletId  String   @map("booklet_id")
+  categoryId String   @map("category_id")
+  booklet    Booklet  @relation(fields: [bookletId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([bookletId, categoryId])
+  @@map("booklet_categories")
+}
+
+model AddOn {
+  id                String            @id @default(uuid())
+  cityId            String            @map("city_id")
+  title             String
+  description       String?
+  price             Float
+  status            String            @default("active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  addOnOffers       AddOnOffer[]
+  addOnCategories   AddOnCategory[]
+
+  @@map("add_ons")
+}
+
+model AddOnOffer {
+  id      String @id @default(uuid())
+  addOnId String @map("add_on_id")
+  offerId String @map("offer_id")
+  addOn   AddOn  @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([addOnId, offerId])
+  @@map("add_on_offers")
+}
+
+model AddOnCategory {
+  id         String   @id @default(uuid())
+  addOnId    String   @map("add_on_id")
+  categoryId String   @map("category_id")
+  addOn      AddOn    @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([addOnId, categoryId])
+  @@map("add_on_categories")
+}
+
+model Banner {
+  id           String   @id @default(uuid())
+  image        String
+  redirectType String   @map("redirect_type")
+  redirectId   String?  @map("redirect_id")
+  priority     Int      @default(0)
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("banners")
 }
