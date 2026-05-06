@@ -31,7 +31,12 @@ export const getAddOnsByCity = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, data: addOns });
+    const addOnsWithOffersCount = addOns.map((addOn) => ({
+      ...addOn,
+      offersCount: addOn.addOnOffers.length,
+    }));
+
+    res.json({ success: true, data: addOnsWithOffersCount });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

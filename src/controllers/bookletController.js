@@ -204,13 +204,19 @@ export const getBookletsByCity = async (req, res) => {
     const booklets = await prisma.booklet.findMany({
       where,
       include: {
+        city: true,
         bookletCategories: { include: { category: true } },
         bookletOffers: { include: { offer: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, data: booklets });
+    const bookletsWithOffersCount = booklets.map((booklet) => ({
+      ...booklet,
+      offersCount: booklet.bookletOffers.length,
+    }));
+
+    res.json({ success: true, data: bookletsWithOffersCount });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
