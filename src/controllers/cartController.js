@@ -35,6 +35,17 @@ export const addToCart = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Item type must be booklet, coupon, or add_on' });
     }
 
+    // Check if user has booklet when trying to add add_on
+    if (item_type === 'add_on') {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { hasBooklet: true }
+      });
+      if (!user || !user.hasBooklet) {
+        return res.status(403).json({ success: false, error: 'Booklet purchase required to add add-on offers' });
+      }
+    }
+
     let cart = await prisma.cart.findUnique({
       where: { userId },
       include: { items: true },

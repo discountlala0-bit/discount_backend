@@ -133,6 +133,15 @@ export const verifyIdToken = async (req, res) => {
 
   const user = await prisma.user.findUnique({
     where: { firebaseUid: decoded.uid },
+    select: {
+      id: true,
+      firebaseUid: true,
+      phoneNumber: true,
+      email: true,
+      name: true,
+      hasBooklet: true,
+      referralCode: true,
+    }
   });
 
   if (!user) {

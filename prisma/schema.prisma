@@ -13,6 +13,7 @@ model User {
   phoneNumber  String   @unique @map("phone_number")
   email        String?  @unique
   name         String?
+  hasBooklet   Boolean  @default(false) @map("has_booklet")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   referralCode String?  @unique @map("referral_code")
