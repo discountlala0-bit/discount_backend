@@ -110,37 +110,43 @@ export const createRazorpayOrder = async (req, res) => {
       // Get user's cart
       const cart = await prisma.cart.findUnique({
         where: { userId },
-        include: {
-          items: {
-            include: {
-              booklet: true,
-              addOn: {
-                include: {
-                  offers: {
-                    include: {
-                      offer: true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        include: { items: true }
       });
 
       if (!cart || cart.items.length === 0) {
         return res.status(400).json({ success: false, error: 'Cart is empty' });
       }
 
-      // Calculate total amount
+      // Calculate total amount and prepare order items with prices
       let totalAmount = 0;
+      const orderItemsData = [];
       for (const item of cart.items) {
-        if (item.itemType === 'booklet' && item.booklet) {
-          totalAmount += item.booklet.price;
-        } else if (item.itemType === 'add_on' && item.addOn) {
-          const offerPrices = item.addOn.offers.map(ao => ao.offer.price);
-          totalAmount += offerPrices.length > 0 ? Math.min(...offerPrices) : 0;
+        let price = 0;
+        if (item.itemType === 'booklet') {
+          const booklet = await prisma.booklet.findUnique({
+            where: { id: item.itemId }
+          });
+          if (booklet) price = booklet.price;
+        } else if (item.itemType === 'add_on') {
+          const addOn = await prisma.addOn.findUnique({
+            where: { id: item.itemId },
+            include: {
+              offers: {
+                include: { offer: true }
+              }
+            }
+          });
+          if (addOn) {
+            const offerPrices = addOn.offers.map(ao => ao.offer.price);
+            price = offerPrices.length > 0 ? Math.min(...offerPrices) : 0;
+          }
         }
+        totalAmount += price;
+        orderItemsData.push({
+          itemType: item.itemType,
+          itemId: item.itemId,
+          price
+        });
       }
 
       // Create order
@@ -150,21 +156,13 @@ export const createRazorpayOrder = async (req, res) => {
           totalAmount,
           status: 'pending',
           items: {
-            create: cart.items.map(item => ({
-              itemType: item.itemType,
-              itemId: item.itemId
-            }))
+            create: orderItemsData
           }
         },
         include: { items: true }
       });
 
       finalOrderId = order.id;
-
-      // Clear cart
-      await prisma.cartItem.deleteMany({
-        where: { cartId: cart.id }
-      });
     }
 
     if (!amount) {
@@ -174,7 +172,7 @@ export const createRazorpayOrder = async (req, res) => {
     const options = {
       amount: Math.round(amount * 100), // Razorpay expects amount in paise
       currency,
-      receipt: receipt || `receipt_${finalOrderId}`,
+      receipt: receipt || `receipt_${finalOrderId.substring(0, 32)}`,
       notes: {
         order_id: finalOrderId
       }

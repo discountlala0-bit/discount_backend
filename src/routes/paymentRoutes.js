@@ -7,8 +7,12 @@ import {
   updatePaymentStatus,
   getPaymentsByOrder,
 } from '../controllers/paymentController.js';
+import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// All payment routes require authentication
+router.use(authMiddleware);
 
 // Razorpay endpoints
 router.post('/razorpay/create-order', createRazorpayOrder);
