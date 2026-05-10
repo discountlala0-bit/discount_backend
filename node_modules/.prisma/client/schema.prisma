@@ -16,6 +16,7 @@ model User {
   hasBooklet   Boolean  @default(false) @map("has_booklet")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  image        String?  @map("image")
   referralCode String?  @unique @map("referral_code")
   referredBy   String?  @map("referred_by")
   role         String   @default("user")
