@@ -36,39 +36,7 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
           if (err.code !== 'P2002') throw err;
         }
       }
-    } else if (item.itemType === 'add_on') {
-      const addOn = await prisma.addOn.findUnique({
-        where: { id: item.itemId }
-      });
-
-      if (!addOn) continue;
-
-      const addOnOffers = await prisma.addOnOffer.findMany({
-        where: { addOnId: item.itemId },
-        select: { offerId: true }
-      });
-
-      for (const ao of addOnOffers) {
-        const offer = await prisma.offer.findUnique({
-          where: { id: ao.offerId }
-        });
-
-        if (!offer) continue;
-
-        try {
-          await prisma.userCoupon.create({
-            data: {
-              userId,
-              offerId: ao.offerId,
-              status: 'active',
-              expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null
-            }
-          });
-        } catch (err) {
-          if (err.code !== 'P2002') throw err;
-        }
-      }
-    } else if (item.itemType === 'coupon') {
+    } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
       const offer = await prisma.offer.findUnique({
         where: { id: item.itemId }
       });

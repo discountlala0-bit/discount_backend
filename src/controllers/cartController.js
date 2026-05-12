@@ -115,3 +115,87 @@ export const clearCart = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// Get cart items with full offer/booklet details populated
+export const getCartDetails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let cart = await prisma.cart.findUnique({
+      where: { userId },
+      include: { items: true },
+    });
+
+    if (!cart) {
+      cart = await prisma.cart.create({
+        data: { userId },
+        include: { items: true },
+      });
+    }
+
+    const itemsWithDetails = await Promise.all(
+      cart.items.map(async (item) => {
+        let details = null;
+
+        if (item.itemType === 'add_on' || item.itemType === 'coupon') {
+          const offer = await prisma.offer.findUnique({
+            where: { id: item.itemId },
+            include: { place: true },
+          });
+          if (offer) {
+            details = {
+              id: offer.id,
+              title: offer.title,
+              description: offer.description,
+              price: offer.price,
+              validity: offer.validity,
+              timing: offer.timing,
+              maxPeople: offer.maxPeople,
+              placeId: offer.placeId,
+              offerType: offer.offerType,
+              status: offer.status,
+              place: offer.place
+                ? {
+                    id: offer.place.id,
+                    name: offer.place.name,
+                    categoryId: offer.place.categoryId,
+                    address: offer.place.address,
+                    phone: offer.place.phone,
+                    description: offer.place.description,
+                    image: offer.place.image,
+                    status: offer.place.status,
+                  }
+                : null,
+            };
+          }
+        } else if (item.itemType === 'booklet') {
+          const booklet = await prisma.booklet.findUnique({
+            where: { id: item.itemId },
+          });
+          if (booklet) {
+            details = {
+              id: booklet.id,
+              title: booklet.title,
+              description: booklet.description,
+              price: booklet.price,
+              validity: booklet.validity,
+              image: booklet.image,
+            };
+          }
+        }
+
+        return {
+          id: item.id,
+          itemType: item.itemType,
+          itemId: item.itemId,
+          details,
+        };
+      })
+    );
+
+    res.json({ success: true, data: itemsWithDetails });
+  } catch (error) {
+    console.error('Get cart details error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

@@ -42,39 +42,7 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
           if (err.code !== 'P2002') throw err;
         }
       }
-    } else if (item.itemType === 'add_on') {
-      const addOn = await prisma.addOn.findUnique({
-        where: { id: item.itemId }
-      });
-
-      if (!addOn) continue;
-
-      const addOnOffers = await prisma.addOnOffer.findMany({
-        where: { addOnId: item.itemId },
-        select: { offerId: true }
-      });
-
-      for (const ao of addOnOffers) {
-        const offer = await prisma.offer.findUnique({
-          where: { id: ao.offerId }
-        });
-
-        if (!offer) continue;
-
-        try {
-          await prisma.userCoupon.create({
-            data: {
-              userId,
-              offerId: ao.offerId,
-              status: 'active',
-              expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null
-            }
-          });
-        } catch (err) {
-          if (err.code !== 'P2002') throw err;
-        }
-      }
-    } else if (item.itemType === 'coupon') {
+    } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
       const offer = await prisma.offer.findUnique({
         where: { id: item.itemId }
       });
@@ -393,6 +361,158 @@ export const getPaymentsByOrder = async (req, res) => {
 
     res.json({ success: true, data: payments });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ── Normal (non-Razorpay) payment flow ──────────────────────────────────────
+
+// Create order from cart without Razorpay
+export const createNormalOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const cart = await prisma.cart.findUnique({
+      where: { userId },
+      include: { items: true }
+    });
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({ success: false, error: 'Cart is empty' });
+    }
+
+    let totalAmount = 0;
+    const orderItemsData = [];
+
+    for (const item of cart.items) {
+      let price = 0;
+      if (item.itemType === 'booklet') {
+        const booklet = await prisma.booklet.findUnique({ where: { id: item.itemId } });
+        if (booklet) price = booklet.price;
+      } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
+        const offer = await prisma.offer.findUnique({ where: { id: item.itemId } });
+        if (offer) price = offer.price;
+      }
+      totalAmount += price;
+      orderItemsData.push({ itemType: item.itemType, itemId: item.itemId, price });
+    }
+
+    const order = await prisma.order.create({
+      data: {
+        userId,
+        totalAmount,
+        status: 'pending',
+        items: { create: orderItemsData }
+      },
+      include: { items: true }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: {
+        order_id: order.id,
+        totalAmount: order.totalAmount,
+        status: order.status
+      }
+    });
+  } catch (error) {
+    console.error('Normal order creation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Process normal payment – marks payment as success without gateway
+export const processNormalPayment = async (req, res) => {
+  try {
+    const { order_id } = req.body;
+    const userId = req.user.id;
+
+    if (!order_id) {
+      return res.status(400).json({ success: false, error: 'Order ID is required' });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: order_id },
+      include: { items: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    if (order.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (order.status === 'completed') {
+      return res.status(400).json({ success: false, error: 'Order already completed' });
+    }
+
+    // Create payment record
+    const payment = await prisma.payment.create({
+      data: {
+        orderId: order_id,
+        paymentMethod: 'cash',
+        transactionId: `TXN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        paymentStatus: 'success',
+      },
+    });
+
+    // Update order to completed
+    await prisma.order.update({
+      where: { id: order_id },
+      data: { status: 'completed' },
+    });
+
+    // Create coupons for the user
+    await createCouponsForCompletedOrder(order_id, userId);
+
+    // Check if order contains booklet items and update user hasBooklet
+    const hasBookletItem = order.items.some(item => item.itemType === 'booklet');
+    if (hasBookletItem) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { hasBooklet: true },
+      });
+    }
+
+    // Handle distributor commission if applicable
+    if (order.distributorId) {
+      const distributor = await prisma.distributor.findUnique({ where: { id: order.distributorId } });
+      if (distributor) {
+        const commissionAmount = (order.totalAmount * distributor.commissionPercentage) / 100;
+        await prisma.distributorCommission.create({
+          data: {
+            distributorId: distributor.id,
+            orderId: order.id,
+            commissionAmount,
+            status: 'pending',
+          },
+        });
+      }
+    }
+
+    // Clear the cart
+    const cart = await prisma.cart.findUnique({ where: { userId } });
+    if (cart) {
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment processed successfully',
+      data: {
+        payment,
+        order: {
+          id: order.id,
+          status: 'completed',
+          totalAmount: order.totalAmount
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Normal payment processing error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
