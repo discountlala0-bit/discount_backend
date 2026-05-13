@@ -14,7 +14,17 @@ export const getUserCoupons = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, data: coupons });
+    const bookletOfferIds = new Set(
+      (await prisma.bookletOffer.findMany({ select: { offerId: true } }))
+        .map(bo => bo.offerId)
+    );
+
+    const data = coupons.map(c => ({
+      ...c,
+      isBookletOrigin: bookletOfferIds.has(c.offerId),
+    }));
+
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

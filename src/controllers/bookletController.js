@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/prisma.js';
+import { verifyToken } from '../../lib/jwt.js';
 
 export const createBooklet = async (req, res) => {
   try {
@@ -217,12 +218,49 @@ export const getBookletsByCity = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    const bookletsWithOffersCount = booklets.map((booklet) => ({
-      ...booklet,
-      offersCount: booklet.bookletOffers.length,
+    // Optional auth — extract user if token present
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = verifyToken(token);
+        if (decoded && decoded.id) userId = decoded.id;
+      } catch (_) {}
+    }
+
+    const bookletsWithUserInfo = await Promise.all(booklets.map(async (booklet) => {
+      let purchasedAt = null;
+      let expiresAt = null;
+
+      if (userId) {
+        const order = await prisma.order.findFirst({
+          where: {
+            userId,
+            status: 'completed',
+            items: { some: { itemType: 'booklet', itemId: booklet.id } },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+
+        if (order) {
+          purchasedAt = order.createdAt;
+          if (booklet.validity) {
+            expiresAt = new Date(order.createdAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000);
+          }
+        }
+      }
+
+      return {
+        ...booklet,
+        offersCount: booklet.bookletOffers.length,
+        purchasedAt,
+        expiresAt,
+      };
     }));
 
-    res.json({ success: true, data: bookletsWithOffersCount });
+    res.json({ success: true, data: bookletsWithUserInfo });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
