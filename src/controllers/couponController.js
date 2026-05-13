@@ -10,7 +10,7 @@ export const getUserCoupons = async (req, res) => {
 
     const coupons = await prisma.userCoupon.findMany({
       where,
-      include: { offer: true },
+      include: { offer: { include: { place: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
