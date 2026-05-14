@@ -371,6 +371,7 @@ export const getPaymentsByOrder = async (req, res) => {
 export const createNormalOrder = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { distributor_code } = req.body;
 
     const cart = await prisma.cart.findUnique({
       where: { userId },
@@ -379,6 +380,17 @@ export const createNormalOrder = async (req, res) => {
 
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ success: false, error: 'Cart is empty' });
+    }
+
+    let distributorId = null;
+    if (distributor_code) {
+      const distributor = await prisma.distributor.findUnique({
+        where: { referralCode: distributor_code },
+      });
+      if (!distributor) {
+        return res.status(400).json({ success: false, error: 'Invalid distributor code' });
+      }
+      distributorId = distributor.id;
     }
 
     let totalAmount = 0;
@@ -402,6 +414,7 @@ export const createNormalOrder = async (req, res) => {
         userId,
         totalAmount,
         status: 'pending',
+        distributorId,
         items: { create: orderItemsData }
       },
       include: { items: true }

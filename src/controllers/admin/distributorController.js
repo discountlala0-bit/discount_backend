@@ -51,7 +51,6 @@ export const getDistributorById = async (req, res) => {
     const distributor = await prisma.distributor.findUnique({
       where: { id },
       include: {
-        orders: true,
         commissions: { include: { order: true } },
       },
     });
@@ -108,6 +107,31 @@ export const getCommissions = async (req, res) => {
     });
 
     res.json({ success: true, data: commissions });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updateCommissionStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status is required' });
+    }
+
+    const commission = await prisma.distributorCommission.findUnique({ where: { id } });
+    if (!commission) {
+      return res.status(404).json({ success: false, error: 'Commission not found' });
+    }
+
+    const updated = await prisma.distributorCommission.update({
+      where: { id },
+      data: { status },
+    });
+
+    res.json({ success: true, message: 'Commission status updated', data: updated });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
