@@ -63,6 +63,24 @@ export const updateMe = async (req, res) => {
   }
 };
 
+export const deactivateAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, message: 'Account deactivated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 export const uploadImage = async (req, res) => {
   try {
     if (!req.file) {

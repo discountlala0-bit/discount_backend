@@ -141,6 +141,7 @@ export const verifyIdToken = async (req, res) => {
       name: true,
       hasBooklet: true,
       referralCode: true,
+      isActive: true,
     }
   });
 
@@ -149,6 +150,13 @@ export const verifyIdToken = async (req, res) => {
       isNewUser: true,
       firebaseUid: decoded.uid,
       phoneNumber: decoded.phone_number,
+    });
+  }
+
+  if (!user.isActive) {
+    return res.status(403).json({
+      success: false,
+      error: 'Account deactivated. Please contact admin to reactivate your account.',
     });
   }
 
