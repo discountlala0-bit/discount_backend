@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import Razorpay from 'razorpay';
 
@@ -5,6 +6,12 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+
+const generateRedeemCode = () => {
+  const uuid = crypto.randomUUID();
+  const code = uuid.toUpperCase().replaceAll('-', '').substring(0, 12);
+  return { id: uuid, code };
+};
 
 // Helper function to create coupons for a completed order
 const createCouponsForCompletedOrder = async (orderId, userId) => {
@@ -30,8 +37,11 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
 
       for (const bo of bookletOffers) {
         try {
+          const { id, code } = generateRedeemCode();
           await prisma.userCoupon.create({
             data: {
+              id,
+              redeemCode: code,
               userId,
               offerId: bo.offerId,
               status: 'active',
@@ -50,8 +60,11 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
       if (!offer) continue;
 
       try {
+        const { id, code } = generateRedeemCode();
         await prisma.userCoupon.create({
           data: {
+            id,
+            redeemCode: code,
             userId,
             offerId: item.itemId,
             status: 'active',

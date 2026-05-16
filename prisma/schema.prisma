@@ -164,6 +164,7 @@ model UserCoupon {
   userId     String    @map("user_id")
   offerId    String    @map("offer_id")
   status     String    @default("active")
+  redeemCode String?   @unique @map("redeem_code")
   expiresAt  DateTime? @map("expires_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   redeemedAt DateTime? @map("redeemed_at")

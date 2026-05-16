@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 
 export const getUserCoupons = async (req, res) => {
@@ -100,8 +101,11 @@ export const createCoupon = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Offer not found' });
     }
 
+    const uuid = crypto.randomUUID();
+    const redeemCode = uuid.toUpperCase().replaceAll('-', '').substring(0, 12);
+
     const coupon = await prisma.userCoupon.create({
-      data: { userId: user_id, offerId: offer_id },
+      data: { id: uuid, redeemCode, userId: user_id, offerId: offer_id },
     });
 
     res.status(201).json({ success: true, message: 'Coupon created', data: coupon });
