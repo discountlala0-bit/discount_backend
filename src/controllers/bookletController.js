@@ -14,11 +14,6 @@ export const createBooklet = async (req, res) => {
       return res.status(404).json({ success: false, error: 'City not found' });
     }
 
-    const existingBooklet = await prisma.booklet.findUnique({ where: { cityId: city_id } });
-    if (existingBooklet) {
-      return res.status(400).json({ success: false, error: 'City already has a booklet. One city can only have one booklet.' });
-    }
-
     const booklet = await prisma.booklet.create({
       data: {
         cityId: city_id,
@@ -32,18 +27,12 @@ export const createBooklet = async (req, res) => {
     });
 
     if (categories && Array.isArray(categories) && categories.length > 0) {
-      const categoryRecords = await prisma.category.findMany({
-        where: { name: { in: categories } },
+      await prisma.bookletCategory.createMany({
+        data: categories.map((categoryId) => ({
+          bookletId: booklet.id,
+          categoryId,
+        })),
       });
-
-      if (categoryRecords.length > 0) {
-        await prisma.bookletCategory.createMany({
-          data: categoryRecords.map((cat) => ({
-            bookletId: booklet.id,
-            categoryId: cat.id,
-          })),
-        });
-      }
     }
 
     const bookletWithCategories = await prisma.booklet.findUnique({
@@ -120,11 +109,6 @@ export const updateBooklet = async (req, res) => {
       if (!city) {
         return res.status(404).json({ success: false, error: 'City not found' });
       }
-
-      const existingBooklet = await prisma.booklet.findUnique({ where: { cityId: city_id } });
-      if (existingBooklet && existingBooklet.id !== id) {
-        return res.status(400).json({ success: false, error: 'City already has a booklet. One city can only have one booklet.' });
-      }
     }
 
     const updatedBooklet = await prisma.booklet.update({
@@ -141,20 +125,10 @@ export const updateBooklet = async (req, res) => {
     });
 
     if (categories && Array.isArray(categories)) {
-      await prisma.bookletCategory.deleteMany({
-        where: { bookletId: id },
-      });
-
-      const categoryRecords = await prisma.category.findMany({
-        where: { name: { in: categories } },
-      });
-
-      if (categoryRecords.length > 0) {
+      await prisma.bookletCategory.deleteMany({ where: { bookletId: id } });
+      if (categories.length > 0) {
         await prisma.bookletCategory.createMany({
-          data: categoryRecords.map((cat) => ({
-            bookletId: id,
-            categoryId: cat.id,
-          })),
+          data: categories.map((categoryId) => ({ bookletId: id, categoryId })),
         });
       }
     }
@@ -261,6 +235,68 @@ export const getBookletsByCity = async (req, res) => {
     }));
 
     res.json({ success: true, data: bookletsWithUserInfo });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const getPurchasedBooklets = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        userId,
+        status: 'completed',
+        items: { some: { itemType: 'booklet' } },
+      },
+      include: {
+        items: { where: { itemType: 'booklet' } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Map bookletId → first purchase date (earliest order)
+    const purchaseMap = new Map();
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (!purchaseMap.has(item.itemId)) {
+          purchaseMap.set(item.itemId, order.createdAt);
+        }
+      }
+    }
+
+    if (purchaseMap.size === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const booklets = await prisma.booklet.findMany({
+      where: { id: { in: Array.from(purchaseMap.keys()) } },
+      include: {
+        city: true,
+        bookletCategories: { include: { category: true } },
+        bookletOffers: {
+          include: {
+            offer: { include: { place: true } },
+          },
+        },
+      },
+    });
+
+    const result = booklets.map((booklet) => {
+      const purchasedAt = purchaseMap.get(booklet.id);
+      const expiresAt = booklet.validity
+        ? new Date(purchasedAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000)
+        : null;
+      return {
+        ...booklet,
+        offersCount: booklet.bookletOffers.length,
+        purchasedAt,
+        expiresAt,
+      };
+    });
+
+    res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

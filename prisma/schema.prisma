@@ -40,15 +40,16 @@ model City {
   status    String   @default("active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  booklet   Booklet?
+  booklets  Booklet[]
   addOns    AddOn[]
+  places    Place[]
 
   @@map("cities")
 }
 
 model Booklet {
   id                String            @id @default(uuid())
-  cityId            String            @unique @map("city_id")
+  cityId            String            @map("city_id")
   title             String
   description       String?
   price             Float
@@ -231,6 +232,7 @@ model Category {
 model Place {
   id          String   @id @default(uuid())
   name        String
+  cityId      String?  @map("city_id")
   categoryId  String   @map("category_id")
   address     String?
   phone       String?
@@ -239,6 +241,7 @@ model Place {
   status      String   @default("active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  city        City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   offers      Offer[]
 
@@ -262,6 +265,7 @@ model AddOn {
   title             String
   description       String?
   price             Float
+  image             String?
   status            String            @default("active")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")

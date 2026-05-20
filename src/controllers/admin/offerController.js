@@ -49,15 +49,20 @@ export const createOffer = async (req, res) => {
 
 export const getOffers = async (req, res) => {
   try {
-    const { status, place_id } = req.query;
+    const { status, place_id, city_id } = req.query;
 
     const where = {};
     if (status) where.status = status;
     if (place_id) where.placeId = place_id;
+    if (city_id) where.place = { cityId: city_id };
 
     const offers = await prisma.offer.findMany({
       where,
-      include: { place: { include: { category: true } } },
+      include: {
+        place: { include: { category: true, city: true } },
+        bookletOffers: { select: { bookletId: true } },
+        addOnOffers: { select: { addOnId: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 

@@ -13,6 +13,7 @@ import adminOrderRoutes from './src/routes/admin/orderRoutes.js';
 import adminCategoryRoutes from './src/routes/admin/categoryRoutes.js';
 import adminPlaceRoutes from './src/routes/admin/placeRoutes.js';
 import adminUserRoutes from './src/routes/admin/userRoutes.js';
+import adminUploadRoutes from './src/routes/admin/uploadRoutes.js';
 
 import bookletRoutes from './src/routes/bookletRoutes.js';
 import addOnRoutes from './src/routes/addOnRoutes.js';
@@ -80,6 +81,7 @@ app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/categories', adminCategoryRoutes);
 app.use('/api/admin/places', adminPlaceRoutes);
 app.use('/api/admin/users', adminUserRoutes);
+app.use('/api/admin/upload', adminUploadRoutes);
 
 app.use('/api/booklets', bookletRoutes);
 app.use('/api/add-ons', addOnRoutes);

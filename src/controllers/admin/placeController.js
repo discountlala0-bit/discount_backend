@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createPlace = async (req, res) => {
   try {
-    const { name, category_id, address, phone, description, status } = req.body;
+    const { name, category_id, city_id, address, phone, description, status } = req.body;
 
     if (!name || !category_id) {
       return res.status(400).json({ success: false, error: 'Name and category ID are required' });
@@ -13,16 +13,24 @@ export const createPlace = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Category not found' });
     }
 
+    if (city_id) {
+      const city = await prisma.city.findUnique({ where: { id: city_id } });
+      if (!city) {
+        return res.status(404).json({ success: false, error: 'City not found' });
+      }
+    }
+
     const place = await prisma.place.create({
       data: {
         name,
         categoryId: category_id,
+        ...(city_id && { cityId: city_id }),
         address,
         phone,
         description,
         status: status || 'active',
       },
-      include: { category: true, offers: true },
+      include: { category: true, city: true, offers: true },
     });
 
     res.status(201).json({ success: true, message: 'Place created successfully', data: place });
@@ -33,15 +41,16 @@ export const createPlace = async (req, res) => {
 
 export const getPlaces = async (req, res) => {
   try {
-    const { category_id, status } = req.query;
+    const { category_id, city_id, status } = req.query;
 
     const where = {};
     if (category_id) where.categoryId = category_id;
+    if (city_id) where.cityId = city_id;
     if (status) where.status = status;
 
     const places = await prisma.place.findMany({
       where,
-      include: { category: true, offers: true },
+      include: { category: true, city: true, offers: true },
       orderBy: { name: 'asc' },
     });
 
@@ -57,7 +66,7 @@ export const getPlaceById = async (req, res) => {
 
     const place = await prisma.place.findUnique({
       where: { id },
-      include: { category: true, offers: true },
+      include: { category: true, city: true, offers: true },
     });
 
     if (!place) {
@@ -94,7 +103,7 @@ export const getPlacesByCategory = async (req, res) => {
 export const updatePlace = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category_id, address, phone, description, status } = req.body;
+    const { name, category_id, city_id, address, phone, description, status } = req.body;
 
     const place = await prisma.place.findUnique({ where: { id } });
     if (!place) {
@@ -108,17 +117,25 @@ export const updatePlace = async (req, res) => {
       }
     }
 
+    if (city_id && city_id !== place.cityId) {
+      const city = await prisma.city.findUnique({ where: { id: city_id } });
+      if (!city) {
+        return res.status(404).json({ success: false, error: 'City not found' });
+      }
+    }
+
     const updatedPlace = await prisma.place.update({
       where: { id },
       data: {
         ...(name && { name }),
         ...(category_id && { categoryId: category_id }),
+        ...(city_id !== undefined && { cityId: city_id || null }),
         ...(address !== undefined && { address }),
         ...(phone !== undefined && { phone }),
         ...(description !== undefined && { description }),
         ...(status && { status }),
       },
-      include: { category: true, offers: true },
+      include: { category: true, city: true, offers: true },
     });
 
     res.json({ success: true, message: 'Place updated successfully', data: updatedPlace });

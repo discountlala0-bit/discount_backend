@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createAddOn = async (req, res) => {
   try {
-    const { city_id, title, description, price, status, categories } = req.body;
+    const { city_id, title, description, price, image, status, categories } = req.body;
 
     const addOn = await prisma.addOn.create({
       data: {
@@ -10,6 +10,7 @@ export const createAddOn = async (req, res) => {
         title,
         description,
         price,
+        image,
         status: status || 'active',
         addOnCategories: categories ? {
           create: categories.map(categoryId => ({ categoryId }))
@@ -78,7 +79,7 @@ export const getAddOnById = async (req, res) => {
 export const updateAddOn = async (req, res) => {
   try {
     const { id } = req.params;
-    const { city_id, title, description, price, status, categories } = req.body;
+    const { city_id, title, description, price, image, status, categories } = req.body;
 
     const addOn = await prisma.addOn.findUnique({ where: { id } });
     if (!addOn) {
@@ -92,6 +93,7 @@ export const updateAddOn = async (req, res) => {
         ...(title !== undefined && { title }),
         ...(description !== undefined && { description }),
         ...(price !== undefined && { price }),
+        ...(image !== undefined && { image }),
         ...(status && { status }),
         ...(categories && {
           addOnCategories: {
@@ -152,7 +154,7 @@ export const addOfferToAddOn = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Offer not found' });
     }
 
-    if (offer.offerType !== 'add-on') {
+    if (offer.offerType !== 'add_on') {
       return res.status(400).json({
         success: false,
         error: 'Only add-on type offers can be added to an add-on package',
