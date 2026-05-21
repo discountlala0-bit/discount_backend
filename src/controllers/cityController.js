@@ -12,7 +12,7 @@ export const getCities = async (req, res) => {
     const cities = await prisma.city.findMany({
       where,
       include: {
-        booklet: {
+        booklets: {
           select: {
             id: true,
             title: true,
@@ -38,7 +38,7 @@ export const getCityById = async (req, res) => {
     const city = await prisma.city.findUnique({
       where: { id },
       include: {
-        booklet: true,
+        booklets: true,
         addOns: true,
       },
     });

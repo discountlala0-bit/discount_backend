@@ -35,13 +35,35 @@ export const addToCart = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Item type must be booklet, coupon, or add_on' });
     }
 
-    // Check if user has booklet when trying to add add_on
+    // Check if user has purchased the booklet for the same city as this add_on
     if (item_type === 'add_on') {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { hasBooklet: true }
+      const addOnOffer = await prisma.addOnOffer.findFirst({
+        where: { offerId: item_id },
+        include: { addOn: { select: { cityId: true } } }
       });
-      if (!user || !user.hasBooklet) {
+
+      if (!addOnOffer) {
+        return res.status(404).json({ success: false, error: 'Add-on offer not found' });
+      }
+
+      const cityId = addOnOffer.addOn.cityId;
+
+      const cityBooklets = await prisma.booklet.findMany({
+        where: { cityId },
+        select: { id: true }
+      });
+
+      const cityBookletIds = cityBooklets.map(b => b.id);
+
+      const hasCityBooklet = cityBookletIds.length > 0 && await prisma.orderItem.findFirst({
+        where: {
+          itemType: 'booklet',
+          itemId: { in: cityBookletIds },
+          order: { userId, status: 'completed' }
+        }
+      });
+
+      if (!hasCityBooklet) {
         return res.status(403).json({ success: false, error: 'Booklet purchase required to add add-on offers' });
       }
     }

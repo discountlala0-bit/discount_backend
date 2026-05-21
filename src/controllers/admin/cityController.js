@@ -49,7 +49,7 @@ export const getCityById = async (req, res) => {
 
     const city = await prisma.city.findUnique({
       where: { id },
-      include: { booklet: true },
+      include: { booklets: true },
     });
 
     if (!city) {
