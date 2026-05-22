@@ -42,6 +42,60 @@ export const getAddOnsByCity = async (req, res) => {
   }
 };
 
+export const getPurchasedAddOns = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const orders = await prisma.order.findMany({
+      where: {
+        userId,
+        status: 'completed',
+        items: { some: { itemType: 'add_on' } },
+      },
+      include: {
+        items: { where: { itemType: 'add_on' } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const purchaseMap = new Map();
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (!purchaseMap.has(item.itemId)) {
+          purchaseMap.set(item.itemId, order.createdAt);
+        }
+      }
+    }
+
+    if (purchaseMap.size === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const addOns = await prisma.addOn.findMany({
+      where: { id: { in: Array.from(purchaseMap.keys()) } },
+      include: {
+        city: true,
+        addOnCategories: { include: { category: true } },
+        addOnOffers: {
+          include: {
+            offer: { include: { place: true } },
+          },
+        },
+      },
+    });
+
+    const result = addOns.map((addOn) => ({
+      ...addOn,
+      offersCount: addOn.addOnOffers.length,
+      purchasedAt: purchaseMap.get(addOn.id),
+    }));
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 export const filterAddOns = async (req, res) => {
   try {
     const { city_id, min_price, max_price, status, category_id } = req.query;
