@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createOffer = async (req, res) => {
   try {
-    const { title, description, price, timing, max_people, place_id, offer_type, status } = req.body;
+    const { title, description, price, timing, max_people, place_id, offer_type, status, terms_and_conditions, popularity } = req.body;
 
     if (!place_id) {
       return res.status(400).json({ success: false, error: 'Place ID is required' });
@@ -34,6 +34,8 @@ export const createOffer = async (req, res) => {
       placeId: place_id,
       offerType: offer_type || 'add_on',
       status: status || 'active',
+      ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
+      popularity: (offer_type === 'add_on' && popularity !== undefined) ? (parseInt(popularity) || 0) : 0,
     };
 
     const offer = await prisma.offer.create({
@@ -106,7 +108,9 @@ export const updateOffer = async (req, res) => {
       timing,
       place_id,
       maxPeople,
-      status
+      status,
+      terms_and_conditions,
+      popularity,
     } = req.body;
 
     const offer = await prisma.offer.findUnique({ where: { id } });
@@ -132,6 +136,8 @@ export const updateOffer = async (req, res) => {
         ...(place_id && { placeId: place_id }),
         ...(maxPeople !== undefined && { maxPeople }),
         ...(status && { status }),
+        ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
+        ...(popularity !== undefined && offer.offerType === 'add_on' && { popularity: parseInt(popularity) || 0 }),
       },
       include: { place: { include: { category: true } } },
     });

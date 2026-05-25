@@ -66,18 +66,20 @@ model Booklet {
 }
 
 model Offer {
-  id            String         @id @default(uuid())
-  title         String
-  description   String?
-  price         Float
-  validity      Int?
-  timing        String?
-  maxPeople     Int?           @map("max_people")
-  placeId       String         @map("place_id")
-  offerType     String         @default("add_on") @map("offer_type")
-  status        String         @default("active")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  id                 String         @id @default(uuid())
+  title              String
+  description        String?
+  price              Float
+  validity           Int?
+  timing             String?
+  maxPeople          Int?           @map("max_people")
+  placeId            String         @map("place_id")
+  offerType          String         @default("add_on") @map("offer_type")
+  status             String         @default("active")
+  termsAndConditions String?        @map("terms_and_conditions")
+  popularity         Int            @default(0)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
   place         Place          @relation(fields: [placeId], references: [id], onDelete: Cascade)
   bookletOffers BookletOffer[]
   addOnOffers   AddOnOffer[]
