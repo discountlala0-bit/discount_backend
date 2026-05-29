@@ -92,7 +92,7 @@ export const createOrder = async (req, res) => {
         where: { referralCode: distributor_code },
       });
       if (!distributor) {
-        return res.status(400).json({ success: false, error: 'Invalid distributor code' });
+        return res.status(400).json({ success: false, error: 'Invalid coupon code' });
       }
       distributorId = distributor.id;
     }
