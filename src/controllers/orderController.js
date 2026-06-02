@@ -30,21 +30,17 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
       });
 
       for (const bo of bookletOffers) {
-        try {
-          const { id, code } = generateRedeemCode();
-          await prisma.userCoupon.create({
-            data: {
-              id,
-              redeemCode: code,
-              userId,
-              offerId: bo.offerId,
-              status: 'active',
-              expiresAt: new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000)
-            }
-          });
-        } catch (err) {
-          if (err.code !== 'P2002') throw err;
-        }
+        const { id, code } = generateRedeemCode();
+        await prisma.userCoupon.create({
+          data: {
+            id,
+            redeemCode: code,
+            userId,
+            offerId: bo.offerId,
+            status: 'active',
+            expiresAt: new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000)
+          }
+        });
       }
     } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
       const offer = await prisma.offer.findUnique({
@@ -53,21 +49,17 @@ const createCouponsForCompletedOrder = async (orderId, userId) => {
 
       if (!offer) continue;
 
-      try {
-        const { id, code } = generateRedeemCode();
-        await prisma.userCoupon.create({
-          data: {
-            id,
-            redeemCode: code,
-            userId,
-            offerId: item.itemId,
-            status: 'active',
-            expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null
-          }
-        });
-      } catch (err) {
-        if (err.code !== 'P2002') throw err;
-      }
+      const { id, code } = generateRedeemCode();
+      await prisma.userCoupon.create({
+        data: {
+          id,
+          redeemCode: code,
+          userId,
+          offerId: item.itemId,
+          status: 'active',
+          expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null
+        }
+      });
     }
   }
 };

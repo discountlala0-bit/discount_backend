@@ -4,16 +4,24 @@ import { prisma } from '../../lib/prisma.js';
 export const getUserCoupons = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { status } = req.query;
+    const { status, page = '1', limit = '20' } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
 
     const where = { userId };
     if (status) where.status = status;
 
-    const coupons = await prisma.userCoupon.findMany({
-      where,
-      include: { offer: { include: { place: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [coupons, total] = await Promise.all([
+      prisma.userCoupon.findMany({
+        where,
+        include: { offer: { include: { place: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+      }),
+      prisma.userCoupon.count({ where }),
+    ]);
 
     const bookletOfferIds = new Set(
       (await prisma.bookletOffer.findMany({ select: { offerId: true } }))
@@ -25,7 +33,16 @@ export const getUserCoupons = async (req, res) => {
       isBookletOrigin: bookletOfferIds.has(c.offerId),
     }));
 
-    res.json({ success: true, data });
+    res.json({
+      success: true,
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
