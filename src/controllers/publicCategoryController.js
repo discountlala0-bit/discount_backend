@@ -17,6 +17,7 @@ export const getCategories = async (req, res) => {
       'Gym',
       'Games',
       'Vehicle',
+      'Medical',
       'Others',
     ];
 
