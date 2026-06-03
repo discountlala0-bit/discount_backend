@@ -10,7 +10,7 @@ export const getCategories = async (req, res) => {
       'Bar',
       'SPA',
       'Salon',
-      'Beauty & Parlour',
+      'Beauty Parlour',
       'Water Park',
       'Caffe',
       'Gym',
