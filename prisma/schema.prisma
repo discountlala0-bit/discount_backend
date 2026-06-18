@@ -12,6 +12,7 @@ model User {
   firebaseUid  String   @unique @map("firebase_uid")
   phoneNumber  String   @unique @map("phone_number")
   email        String?  @unique
+  password     String?
   name         String?
   hasBooklet   Boolean  @default(false) @map("has_booklet")
   createdAt    DateTime @default(now()) @map("created_at")

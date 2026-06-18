@@ -14,6 +14,7 @@ import adminCategoryRoutes from './src/routes/admin/categoryRoutes.js';
 import adminPlaceRoutes from './src/routes/admin/placeRoutes.js';
 import adminUserRoutes from './src/routes/admin/userRoutes.js';
 import adminUploadRoutes from './src/routes/admin/uploadRoutes.js';
+import adminAuthRoutes from './src/routes/adminAuthRoutes.js';
 
 import bookletRoutes from './src/routes/bookletRoutes.js';
 import addOnRoutes from './src/routes/addOnRoutes.js';
@@ -70,6 +71,7 @@ app.get('/', (req, res) => {
 // -------------------- Routes --------------------
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/auth', adminAuthRoutes);
 
 app.use('/api/admin/cities', adminCityRoutes);
 app.use('/api/admin/booklets', adminBookletRoutes);
