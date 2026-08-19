@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import Razorpay from 'razorpay';
+import { buildOrderItemsAndTotals } from '../lib/orderPricing.js';
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -387,40 +388,29 @@ export const createNormalOrder = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cart is empty' });
     }
 
-    let distributorId = null;
+    let distributor = null;
     if (distributor_code) {
-      const distributor = await prisma.distributor.findUnique({
+      distributor = await prisma.distributor.findUnique({
         where: { referralCode: distributor_code },
       });
       if (!distributor) {
         return res.status(400).json({ success: false, error: 'Invalid coupon code' });
       }
-      distributorId = distributor.id;
     }
 
-    let totalAmount = 0;
-    const orderItemsData = [];
-
-    for (const item of cart.items) {
-      let price = 0;
-      if (item.itemType === 'booklet') {
-        const booklet = await prisma.booklet.findUnique({ where: { id: item.itemId } });
-        if (booklet) price = booklet.price;
-      } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
-        const offer = await prisma.offer.findUnique({ where: { id: item.itemId } });
-        if (offer) price = offer.price;
-      }
-      totalAmount += price;
-      orderItemsData.push({ itemType: item.itemType, itemId: item.itemId, price });
-    }
+    const { itemsData, totalAmount, discountAmount } = await buildOrderItemsAndTotals(
+      cart.items,
+      distributor
+    );
 
     const order = await prisma.order.create({
       data: {
         userId,
         totalAmount,
+        discountAmount,
         status: 'pending',
-        distributorId,
-        items: { create: orderItemsData }
+        distributorId: distributor?.id ?? null,
+        items: { create: itemsData }
       },
       include: { items: true }
     });
@@ -493,22 +483,6 @@ export const processNormalPayment = async (req, res) => {
         where: { id: userId },
         data: { hasBooklet: true },
       });
-    }
-
-    // Handle distributor commission if applicable
-    if (order.distributorId) {
-      const distributor = await prisma.distributor.findUnique({ where: { id: order.distributorId } });
-      if (distributor) {
-        const commissionAmount = (order.totalAmount * distributor.commissionPercentage) / 100;
-        await prisma.distributorCommission.create({
-          data: {
-            distributorId: distributor.id,
-            orderId: order.id,
-            commissionAmount,
-            status: 'pending',
-          },
-        });
-      }
     }
 
     // Clear the cart

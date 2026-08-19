@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
+import { buildOrderItemsAndTotals } from '../lib/orderPricing.js';
 
 const generateRedeemCode = () => {
   const uuid = crypto.randomUUID();
@@ -78,15 +79,14 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cart is empty' });
     }
 
-    let distributorId = null;
+    let distributor = null;
     if (distributor_code) {
-      const distributor = await prisma.distributor.findUnique({
+      distributor = await prisma.distributor.findUnique({
         where: { referralCode: distributor_code },
       });
       if (!distributor) {
         return res.status(400).json({ success: false, error: 'Invalid coupon code' });
       }
-      distributorId = distributor.id;
     }
 
     let referralApplied = false;
@@ -99,35 +99,18 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    let totalAmount = 0;
-    const itemsData = [];
-
-    for (const item of cart.items) {
-      let price = 0;
-
-      if (item.itemType === 'booklet') {
-        const booklet = await prisma.booklet.findUnique({ where: { id: item.itemId } });
-        if (booklet) price = booklet.price;
-      } else if (item.itemType === 'coupon') {
-        const offer = await prisma.offer.findUnique({ where: { id: item.itemId } });
-        if (offer) price = offer.price;
-      }
-
-      itemsData.push({
-        itemType: item.itemType,
-        itemId: item.itemId,
-        price,
-      });
-
-      totalAmount += price;
-    }
+    const { itemsData, totalAmount, discountAmount } = await buildOrderItemsAndTotals(
+      cart.items,
+      distributor
+    );
 
     const order = await prisma.order.create({
       data: {
         userId,
         totalAmount,
+        discountAmount,
         status: 'pending',
-        distributorId,
+        distributorId: distributor?.id ?? null,
         referralApplied,
         items: { create: itemsData },
       },
@@ -218,22 +201,6 @@ export const updateOrderStatus = async (req, res) => {
 
     if (status === 'completed' && order.status !== 'completed') {
       await createCouponsForCompletedOrder(order.id, order.userId);
-
-      if (order.distributorId) {
-        const distributor = await prisma.distributor.findUnique({ where: { id: order.distributorId } });
-        if (distributor) {
-          const commissionAmount = (order.totalAmount * distributor.commissionPercentage) / 100;
-
-          await prisma.distributorCommission.create({
-            data: {
-              distributorId: distributor.id,
-              orderId: order.id,
-              commissionAmount,
-              status: 'pending',
-            },
-          });
-        }
-      }
     }
 
     res.json({ success: true, message: 'Order status updated', data: updatedOrder });

@@ -1,0 +1,3 @@
+commission_id,distributor_id,distributor_name,distributor_referral_code,order_id,order_user_id,order_total_amount,commission_amount,status,created_at
+38203f3c-07ee-4d9b-bac8-ee8335a3bdd8,f9802e65-5aa0-4cd2-8a28-cff9bb2140d4,Yatendra,DIST001,633bf0a5-a717-4064-a5ee-3257db659257,7750a096-67b3-40ba-bf45-3e0d9bb2fb51,1299,129.9,pending,2026-05-25T09:06:33.109Z
+0624bd5c-e6eb-490e-a7e0-47ae632c8466,f9802e65-5aa0-4cd2-8a28-cff9bb2140d4,Yatendra,DIST001,3b34d3d6-dac8-43ed-8224-404a0657543b,7750a096-67b3-40ba-bf45-3e0d9bb2fb51,1299,129.9,pending,2026-06-04T02:18:27.331Z

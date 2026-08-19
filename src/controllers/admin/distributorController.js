@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createDistributor = async (req, res) => {
   try {
-    const { name, phone, email, referral_code, commission_percentage } = req.body;
+    const { name, phone, email, referral_code, discount_percentage } = req.body;
 
     if (!name || !phone || !referral_code) {
       return res.status(400).json({ success: false, error: 'Name, phone, and referral code are required' });
@@ -22,7 +22,7 @@ export const createDistributor = async (req, res) => {
         phone,
         email,
         referralCode: referral_code,
-        commissionPercentage: commission_percentage || 0,
+        discountPercentage: discount_percentage || 0,
       },
     });
 
@@ -51,7 +51,10 @@ export const getDistributorById = async (req, res) => {
     const distributor = await prisma.distributor.findUnique({
       where: { id },
       include: {
-        commissions: { include: { order: true } },
+        orders: {
+          include: { user: true, items: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -68,7 +71,7 @@ export const getDistributorById = async (req, res) => {
 export const updateDistributor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, referral_code, commission_percentage } = req.body;
+    const { name, phone, email, referral_code, discount_percentage } = req.body;
 
     const distributor = await prisma.distributor.findUnique({ where: { id } });
     if (!distributor) {
@@ -82,7 +85,7 @@ export const updateDistributor = async (req, res) => {
         ...(phone && { phone }),
         ...(email !== undefined && { email }),
         ...(referral_code && { referralCode: referral_code }),
-        ...(commission_percentage !== undefined && { commissionPercentage: commission_percentage }),
+        ...(discount_percentage !== undefined && { discountPercentage: discount_percentage }),
       },
     });
 
@@ -92,46 +95,21 @@ export const updateDistributor = async (req, res) => {
   }
 };
 
-export const getCommissions = async (req, res) => {
+// Flat, cross-distributor report of orders where a distributor code was used —
+// i.e. which customers used which distributor's code.
+export const getRedemptions = async (req, res) => {
   try {
-    const { distributor_id, status } = req.query;
+    const { distributor_id } = req.query;
 
-    const where = {};
-    if (distributor_id) where.distributorId = distributor_id;
-    if (status) where.status = status;
+    const where = { distributorId: distributor_id || { not: null } };
 
-    const commissions = await prisma.distributorCommission.findMany({
+    const redemptions = await prisma.order.findMany({
       where,
-      include: { distributor: true, order: true },
+      include: { distributor: true, user: true, items: true },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, data: commissions });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-};
-
-export const updateCommissionStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status) {
-      return res.status(400).json({ success: false, error: 'Status is required' });
-    }
-
-    const commission = await prisma.distributorCommission.findUnique({ where: { id } });
-    if (!commission) {
-      return res.status(404).json({ success: false, error: 'Commission not found' });
-    }
-
-    const updated = await prisma.distributorCommission.update({
-      where: { id },
-      data: { status },
-    });
-
-    res.json({ success: true, message: 'Commission status updated', data: updated });
+    res.json({ success: true, data: redemptions });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
