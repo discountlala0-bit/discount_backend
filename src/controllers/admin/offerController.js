@@ -17,8 +17,48 @@ export const createOffer = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Place not found' });
     }
 
+    if (offer_type === 'both') {
+      const bookletOffer = await prisma.offer.create({
+        data: {
+          title,
+          description,
+          price,
+          timing,
+          validity: 365,
+          placeId: place_id,
+          offerType: 'booklet',
+          status: status || 'active',
+          ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
+          popularity: 0,
+        },
+        include: { place: { include: { category: true } } },
+      });
+
+      const addOnOffer = await prisma.offer.create({
+        data: {
+          title,
+          description,
+          price,
+          timing,
+          validity: null,
+          placeId: place_id,
+          offerType: 'add_on',
+          status: status || 'active',
+          ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
+          popularity: popularity !== undefined ? (parseInt(popularity) || 0) : 0,
+        },
+        include: { place: { include: { category: true } } },
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Created 2 separate offers for Booklet and Add-On',
+        data: bookletOffer,
+      });
+    }
+
     let validity;
-    if (offer_type === 'booklet' || offer_type === 'both') {
+    if (offer_type === 'booklet') {
       validity = 365;
     } else {
       validity = null;
@@ -34,7 +74,7 @@ export const createOffer = async (req, res) => {
       offerType: offer_type || 'add_on',
       status: status || 'active',
       ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
-      popularity: (offer_type !== 'booklet' && popularity !== undefined) ? (parseInt(popularity) || 0) : 0,
+      popularity: (offer_type === 'add_on' && popularity !== undefined) ? (parseInt(popularity) || 0) : 0,
     };
 
     const offer = await prisma.offer.create({
@@ -199,11 +239,11 @@ export const addOfferToBooklet = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Offer not found' });
     }
 
-    // Enforce business rule: only booklet or both type offers can be added to a booklet
-    if (offer.offerType !== 'booklet' && offer.offerType !== 'both') {
+    // Enforce business rule: only booklet-type offers can be added to a booklet
+    if (offer.offerType !== 'booklet') {
       return res.status(400).json({
         success: false,
-        error: 'Only booklet or both type offers can be added to a booklet.',
+        error: 'Only booklet-type offers can be added to a booklet.',
       });
     }
 

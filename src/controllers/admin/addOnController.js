@@ -164,10 +164,10 @@ export const addOfferToAddOn = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Offer not found' });
     }
 
-    if (offer.offerType !== 'add_on' && offer.offerType !== 'both') {
+    if (offer.offerType !== 'add_on') {
       return res.status(400).json({
         success: false,
-        error: 'Only add-on or both type offers can be added to an add-on package',
+        error: 'Only add-on type offers can be added to an add-on package.',
       });
     }
 
