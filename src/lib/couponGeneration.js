@@ -41,6 +41,7 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
               userId,
               offerId: bo.offerId,
               status: 'active',
+              isBookletOrigin: true,
               expiresAt: new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000),
             },
           });
@@ -73,6 +74,7 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
             userId,
             offerId: item.itemId,
             status: 'active',
+            isBookletOrigin: false,
             expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null,
           },
         });
@@ -115,6 +117,7 @@ export const ensureUserBookletCoupons = async (userId) => {
             where: {
               userId,
               offerId: bo.offerId,
+              isBookletOrigin: true,
             },
           });
 
@@ -128,6 +131,7 @@ export const ensureUserBookletCoupons = async (userId) => {
                 userId,
                 offerId: bo.offerId,
                 status: 'active',
+                isBookletOrigin: true,
                 expiresAt,
               },
             });

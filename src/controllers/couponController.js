@@ -26,14 +26,9 @@ export const getUserCoupons = async (req, res) => {
       prisma.userCoupon.count({ where }),
     ]);
 
-    const bookletOfferIds = new Set(
-      (await prisma.bookletOffer.findMany({ select: { offerId: true } }))
-        .map(bo => bo.offerId)
-    );
-
     const data = coupons.map(c => ({
       ...c,
-      isBookletOrigin: bookletOfferIds.has(c.offerId),
+      isBookletOrigin: c.isBookletOrigin,
     }));
 
     res.json({
