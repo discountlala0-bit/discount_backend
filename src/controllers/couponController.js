@@ -18,7 +18,7 @@ export const getUserCoupons = async (req, res) => {
     const [coupons, total] = await Promise.all([
       prisma.userCoupon.findMany({
         where,
-        include: { offer: { include: { place: true } } },
+        include: { offer: { include: { place: true } }, user: true },
         orderBy: { createdAt: 'desc' },
         skip: (pageNum - 1) * limitNum,
         take: limitNum,
