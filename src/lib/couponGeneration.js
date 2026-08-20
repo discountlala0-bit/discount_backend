@@ -117,7 +117,6 @@ export const ensureUserBookletCoupons = async (userId) => {
             where: {
               userId,
               offerId: bo.offerId,
-              isBookletOrigin: true,
             },
           });
 
