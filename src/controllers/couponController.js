@@ -1,10 +1,13 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
+import { ensureUserBookletCoupons } from '../lib/couponGeneration.js';
 
 export const getUserCoupons = async (req, res) => {
   try {
     const userId = req.user.id;
     const { status, page = '1', limit = '20' } = req.query;
+
+    await ensureUserBookletCoupons(userId);
 
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));

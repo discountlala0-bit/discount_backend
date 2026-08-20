@@ -80,3 +80,62 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
     }
   }
 };
+
+// Ensures that for any booklets purchased by the user, UserCoupon rows exist
+// for every offer currently in those booklets (including offers added after purchase
+// or quantity increases).
+export const ensureUserBookletCoupons = async (userId) => {
+  try {
+    const completedOrders = await prisma.order.findMany({
+      where: {
+        userId,
+        status: 'completed',
+        items: { some: { itemType: 'booklet' } },
+      },
+      include: {
+        items: { where: { itemType: 'booklet' } },
+      },
+    });
+
+    if (completedOrders.length === 0) return;
+
+    for (const order of completedOrders) {
+      for (const item of order.items) {
+        const booklet = await prisma.booklet.findUnique({
+          where: { id: item.itemId },
+          include: { bookletOffers: true },
+        });
+        if (!booklet) continue;
+
+        const expiresAt = new Date(order.createdAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000);
+
+        for (const bo of booklet.bookletOffers) {
+          const requiredQty = bo.quantity || 1;
+          const existingCount = await prisma.userCoupon.count({
+            where: {
+              userId,
+              offerId: bo.offerId,
+            },
+          });
+
+          const missingQty = Math.max(0, requiredQty - existingCount);
+          for (let i = 0; i < missingQty; i++) {
+            const { id, code } = generateRedeemCode();
+            await prisma.userCoupon.create({
+              data: {
+                id,
+                redeemCode: code,
+                userId,
+                offerId: bo.offerId,
+                status: 'active',
+                expiresAt,
+              },
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring booklet coupons:', error.message);
+  }
+};
