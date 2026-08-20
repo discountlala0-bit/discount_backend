@@ -19,7 +19,7 @@ export const createAddOn = async (req, res) => {
       include: {
         city: true,
         addOnCategories: { include: { category: true } },
-        addOnOffers: { include: { offer: true } },
+        addOnOffers: { include: { offer: { include: { place: true } } } },
       },
     });
 
@@ -43,7 +43,7 @@ export const getAddOns = async (req, res) => {
       include: {
         city: true,
         addOnCategories: { include: { category: true } },
-        addOnOffers: { include: { offer: true } },
+        addOnOffers: { include: { offer: { include: { place: true } } } },
       },
     });
 
@@ -62,7 +62,7 @@ export const getAddOnById = async (req, res) => {
       include: {
         city: true,
         addOnCategories: { include: { category: true } },
-        addOnOffers: { include: { offer: true } },
+        addOnOffers: { include: { offer: { include: { place: true } } } },
       },
     });
 
@@ -105,7 +105,7 @@ export const updateAddOn = async (req, res) => {
       include: {
         city: true,
         addOnCategories: { include: { category: true } },
-        addOnOffers: { include: { offer: true } },
+        addOnOffers: { include: { offer: { include: { place: true } } } },
       },
     });
 

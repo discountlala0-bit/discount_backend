@@ -60,7 +60,11 @@ export const getBooklets = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
-        bookletOffers: { include: { offer: true } },
+        bookletOffers: {
+          include: {
+            offer: { include: { place: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -80,7 +84,11 @@ export const getBookletById = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
-        bookletOffers: { include: { offer: true } },
+        bookletOffers: {
+          include: {
+            offer: { include: { place: true } },
+          },
+        },
       },
     });
 
