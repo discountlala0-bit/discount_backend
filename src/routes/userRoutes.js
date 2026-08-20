@@ -4,13 +4,7 @@ import path from 'path';
 import { getMe, updateMe, uploadImage, deactivateAccount } from '../controllers/userController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
-const storage = multer.diskStorage({
-  destination: 'uploads/',
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const router = express.Router();
 

@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/prisma.js';
+import { uploadToCloudinary } from '../lib/cloudinary.js';
 
 export const getMe = async (req, res) => {
   try {
@@ -87,7 +88,8 @@ export const uploadImage = async (req, res) => {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    const cloudResult = await uploadToCloudinary(req.file.buffer, 'discountLala');
+    const imageUrl = cloudResult.secure_url;
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
