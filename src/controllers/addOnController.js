@@ -31,9 +31,16 @@ export const getAddOnsByCity = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Embed each link's quantity directly onto the offer object so clients
+    // that flatten addOnOffers down to a plain offer list (e.g. the app's
+    // home screen) don't lose it.
     const addOnsWithOffersCount = addOns.map((addOn) => ({
       ...addOn,
-      offersCount: addOn.addOnOffers.length,
+      addOnOffers: addOn.addOnOffers.map((ao) => ({
+        ...ao,
+        offer: { ...ao.offer, quantity: ao.quantity },
+      })),
+      offersCount: addOn.addOnOffers.reduce((acc, ao) => acc + (ao.quantity || 1), 0),
     }));
 
     res.json({ success: true, data: addOnsWithOffersCount });
@@ -86,7 +93,11 @@ export const getPurchasedAddOns = async (req, res) => {
 
     const result = addOns.map((addOn) => ({
       ...addOn,
-      offersCount: addOn.addOnOffers.length,
+      addOnOffers: addOn.addOnOffers.map((ao) => ({
+        ...ao,
+        offer: { ...ao.offer, quantity: ao.quantity },
+      })),
+      offersCount: addOn.addOnOffers.reduce((acc, ao) => acc + (ao.quantity || 1), 0),
       purchasedAt: purchaseMap.get(addOn.id),
     }));
 

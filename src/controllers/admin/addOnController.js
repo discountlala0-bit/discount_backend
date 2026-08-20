@@ -135,13 +135,23 @@ export const deleteAddOn = async (req, res) => {
 export const addOfferToAddOn = async (req, res) => {
   try {
     const { add_on_id, offer_id } = req.body;
+    let quantity = parseInt(req.body.quantity, 10);
+    if (!Number.isInteger(quantity) || quantity < 1) quantity = 1;
+    if (quantity > 4) quantity = 4;
 
+    // If the offer is already in this add-on, just update its quantity
+    // (e.g. changing 1x to 4x) instead of rejecting the request.
     const existing = await prisma.addOnOffer.findUnique({
       where: { addOnId_offerId: { addOnId: add_on_id, offerId: offer_id } },
     });
 
     if (existing) {
-      return res.status(400).json({ success: false, error: 'Offer already added to add-on' });
+      const updated = await prisma.addOnOffer.update({
+        where: { addOnId_offerId: { addOnId: add_on_id, offerId: offer_id } },
+        data: { quantity },
+        include: { offer: true },
+      });
+      return res.json({ success: true, message: 'Add-on offer quantity updated', data: updated });
     }
 
     const addOn = await prisma.addOn.findUnique({ where: { id: add_on_id } });
@@ -162,7 +172,7 @@ export const addOfferToAddOn = async (req, res) => {
     }
 
     const addOnOffer = await prisma.addOnOffer.create({
-      data: { addOnId: add_on_id, offerId: offer_id },
+      data: { addOnId: add_on_id, offerId: offer_id, quantity },
       include: { offer: true },
     });
 

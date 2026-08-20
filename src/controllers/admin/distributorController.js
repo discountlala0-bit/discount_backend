@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createDistributor = async (req, res) => {
   try {
-    const { name, phone, email, referral_code, discount_percentage } = req.body;
+    const { name, phone, email, referral_code, discount_amount } = req.body;
 
     if (!name || !phone || !referral_code) {
       return res.status(400).json({ success: false, error: 'Name, phone, and referral code are required' });
@@ -22,7 +22,7 @@ export const createDistributor = async (req, res) => {
         phone,
         email,
         referralCode: referral_code,
-        discountPercentage: discount_percentage || 0,
+        discountAmount: discount_amount || 0,
       },
     });
 
@@ -71,7 +71,7 @@ export const getDistributorById = async (req, res) => {
 export const updateDistributor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, referral_code, discount_percentage } = req.body;
+    const { name, phone, email, referral_code, discount_amount } = req.body;
 
     const distributor = await prisma.distributor.findUnique({ where: { id } });
     if (!distributor) {
@@ -85,7 +85,7 @@ export const updateDistributor = async (req, res) => {
         ...(phone && { phone }),
         ...(email !== undefined && { email }),
         ...(referral_code && { referralCode: referral_code }),
-        ...(discount_percentage !== undefined && { discountPercentage: discount_percentage }),
+        ...(discount_amount !== undefined && { discountAmount: discount_amount }),
       },
     });
 

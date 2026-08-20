@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createPlace = async (req, res) => {
   try {
-    const { name, category_id, city_id, address, phone, description, status } = req.body;
+    const { name, category_id, city_id, address, phone, description, image, status } = req.body;
 
     if (!name || !category_id) {
       return res.status(400).json({ success: false, error: 'Name and category ID are required' });
@@ -28,6 +28,7 @@ export const createPlace = async (req, res) => {
         address,
         phone,
         description,
+        image,
         status: status || 'active',
       },
       include: { category: true, city: true, offers: true },
@@ -103,7 +104,7 @@ export const getPlacesByCategory = async (req, res) => {
 export const updatePlace = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category_id, city_id, address, phone, description, status } = req.body;
+    const { name, category_id, city_id, address, phone, description, image, status } = req.body;
 
     const place = await prisma.place.findUnique({ where: { id } });
     if (!place) {
@@ -133,6 +134,7 @@ export const updatePlace = async (req, res) => {
         ...(address !== undefined && { address }),
         ...(phone !== undefined && { phone }),
         ...(description !== undefined && { description }),
+        ...(image !== undefined && { image }),
         ...(status && { status }),
       },
       include: { category: true, city: true, offers: true },

@@ -17,7 +17,7 @@ export const validateDistributorCode = async (req, res) => {
       data: {
         distributorId: distributor.id,
         name: distributor.name,
-        discountPercentage: distributor.discountPercentage,
+        discountAmount: distributor.discountAmount,
       },
     });
   } catch (error) {

@@ -2,7 +2,7 @@ import { prisma } from '../../../lib/prisma.js';
 
 export const createOffer = async (req, res) => {
   try {
-    const { title, description, price, timing, max_people, place_id, offer_type, status, terms_and_conditions, popularity } = req.body;
+    const { title, description, price, timing, place_id, offer_type, status, terms_and_conditions, popularity } = req.body;
 
     if (!place_id) {
       return res.status(400).json({ success: false, error: 'Place ID is required' });
@@ -30,7 +30,6 @@ export const createOffer = async (req, res) => {
       price,
       timing,
       validity,
-      maxPeople: max_people,
       placeId: place_id,
       offerType: offer_type || 'add_on',
       status: status || 'active',
@@ -107,7 +106,6 @@ export const updateOffer = async (req, res) => {
       validity,
       timing,
       place_id,
-      maxPeople,
       status,
       terms_and_conditions,
       popularity,
@@ -134,7 +132,6 @@ export const updateOffer = async (req, res) => {
         ...(validity !== undefined && { validity }),
         ...(timing !== undefined && { timing }),
         ...(place_id && { placeId: place_id }),
-        ...(maxPeople !== undefined && { maxPeople }),
         ...(status && { status }),
         ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
         ...(popularity !== undefined && offer.offerType === 'add_on' && { popularity: parseInt(popularity) || 0 }),
@@ -168,14 +165,22 @@ export const deleteOffer = async (req, res) => {
 export const addOfferToBooklet = async (req, res) => {
   try {
     const { booklet_id, offer_id } = req.body;
+    let quantity = parseInt(req.body.quantity, 10);
+    if (!Number.isInteger(quantity) || quantity < 1) quantity = 1;
+    if (quantity > 4) quantity = 4;
 
-    // Check if already exists
+    // If the offer is already in this booklet, just update its quantity
+    // (e.g. changing 1x to 4x) instead of rejecting the request.
     const existing = await prisma.bookletOffer.findUnique({
       where: { bookletId_offerId: { bookletId: booklet_id, offerId: offer_id } },
     });
 
     if (existing) {
-      return res.status(400).json({ success: false, error: 'Offer already added to booklet' });
+      const updated = await prisma.bookletOffer.update({
+        where: { bookletId_offerId: { bookletId: booklet_id, offerId: offer_id } },
+        data: { quantity },
+      });
+      return res.json({ success: true, message: 'Booklet offer quantity updated', data: updated });
     }
 
     const booklet = await prisma.booklet.findUnique({
@@ -210,7 +215,7 @@ export const addOfferToBooklet = async (req, res) => {
 
     // Create the relationship
     const bookletOffer = await prisma.bookletOffer.create({
-      data: { bookletId: booklet_id, offerId: offer_id },
+      data: { bookletId: booklet_id, offerId: offer_id, quantity },
     });
 
     res.status(201).json({ success: true, message: 'Offer added to booklet', data: bookletOffer });

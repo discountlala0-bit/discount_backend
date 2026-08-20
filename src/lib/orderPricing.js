@@ -1,7 +1,7 @@
 import { prisma } from '../../lib/prisma.js';
 
 // Resolves cart items to priced order items, applying the distributor's
-// discount percentage to booklet items only.
+// fixed discount amount to booklet items only.
 export const buildOrderItemsAndTotals = async (cartItems, distributor) => {
   const itemsData = [];
   let subtotal = 0;
@@ -24,7 +24,7 @@ export const buildOrderItemsAndTotals = async (cartItems, distributor) => {
   }
 
   const discountAmount = distributor
-    ? (bookletSubtotal * distributor.discountPercentage) / 100
+    ? Math.min(distributor.discountAmount, bookletSubtotal)
     : 0;
 
   return {

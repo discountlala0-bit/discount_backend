@@ -1,75 +1,12 @@
-import crypto from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import Razorpay from 'razorpay';
 import { buildOrderItemsAndTotals } from '../lib/orderPricing.js';
+import { createCouponsForCompletedOrder } from '../lib/couponGeneration.js';
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-
-const generateRedeemCode = () => {
-  const uuid = crypto.randomUUID();
-  const code = uuid.toUpperCase().replaceAll('-', '').substring(0, 12);
-  return { id: uuid, code };
-};
-
-// Helper function to create coupons for a completed order
-const createCouponsForCompletedOrder = async (orderId, userId) => {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { items: true }
-  });
-
-  if (!order) return;
-
-  for (const item of order.items) {
-    if (item.itemType === 'booklet') {
-      const booklet = await prisma.booklet.findUnique({
-        where: { id: item.itemId }
-      });
-
-      if (!booklet) continue;
-
-      const bookletOffers = await prisma.bookletOffer.findMany({
-        where: { bookletId: item.itemId },
-        select: { offerId: true }
-      });
-
-      for (const bo of bookletOffers) {
-        const { id, code } = generateRedeemCode();
-        await prisma.userCoupon.create({
-          data: {
-            id,
-            redeemCode: code,
-            userId,
-            offerId: bo.offerId,
-            status: 'active',
-            expiresAt: new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000)
-          }
-        });
-      }
-    } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
-      const offer = await prisma.offer.findUnique({
-        where: { id: item.itemId }
-      });
-
-      if (!offer) continue;
-
-      const { id, code } = generateRedeemCode();
-      await prisma.userCoupon.create({
-        data: {
-          id,
-          redeemCode: code,
-          userId,
-          offerId: item.itemId,
-          status: 'active',
-          expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null
-        }
-      });
-    }
-  }
-};
 
 // Create Razorpay order (creates order from cart if order_id not provided)
 export const createRazorpayOrder = async (req, res) => {

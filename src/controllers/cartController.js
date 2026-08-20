@@ -172,7 +172,6 @@ export const getCartDetails = async (req, res) => {
               price: offer.price,
               validity: offer.validity,
               timing: offer.timing,
-              maxPeople: offer.maxPeople,
               placeId: offer.placeId,
               offerType: offer.offerType,
               status: offer.status,

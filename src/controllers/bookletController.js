@@ -228,7 +228,7 @@ export const getBookletsByCity = async (req, res) => {
 
       return {
         ...booklet,
-        offersCount: booklet.bookletOffers.length,
+        offersCount: booklet.bookletOffers.reduce((acc, bo) => acc + (bo.quantity || 1), 0),
         purchasedAt,
         expiresAt,
       };
@@ -290,7 +290,7 @@ export const getPurchasedBooklets = async (req, res) => {
         : null;
       return {
         ...booklet,
-        offersCount: booklet.bookletOffers.length,
+        offersCount: booklet.bookletOffers.reduce((acc, bo) => acc + (bo.quantity || 1), 0),
         purchasedAt,
         expiresAt,
       };
