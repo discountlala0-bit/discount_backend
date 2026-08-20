@@ -123,40 +123,31 @@ app.use((err, req, res, next) => {
 // -------------------- Start Server --------------------
 
 const startServer = async () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+
   try {
     await prisma.$connect();
-
     console.log('✅ Database connected successfully');
-
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-
-    // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      console.log('SIGTERM received');
-
-      await prisma.$disconnect();
-
-      server.close(() => {
-        console.log('Server closed');
-      });
-    });
-
-    process.on('SIGINT', async () => {
-      console.log('SIGINT received');
-
-      await prisma.$disconnect();
-
-      process.exit(0);
-    });
-
   } catch (error) {
-    console.error('❌ Failed to connect database:', error);
-    process.exit(1);
+    console.error('❌ Database connection warning:', error.message);
   }
+
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received');
+    await prisma.$disconnect();
+    server.close(() => {
+      console.log('Server closed');
+    });
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received');
+    await prisma.$disconnect();
+    process.exit(0);
+  });
 };
-
-
 
 startServer();
