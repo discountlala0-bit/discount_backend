@@ -181,6 +181,7 @@ export const getBookletsByCity = async (req, res) => {
 
     const booklets = await prisma.booklet.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         city: true,
         bookletCategories: { include: { category: true } },

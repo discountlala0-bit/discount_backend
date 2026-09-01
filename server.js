@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 
 import authRoutes from './src/routes/authRoutes.js';
 import adminCityRoutes from './src/routes/admin/cityRoutes.js';
@@ -48,6 +49,7 @@ process.on('unhandledRejection', (err) => {
 // -------------------- Middlewares --------------------
 
 app.use(cors());
+app.use(compression());
 
 app.use(express.json({
   limit: '10mb',

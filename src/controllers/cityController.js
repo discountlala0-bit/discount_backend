@@ -11,17 +11,6 @@ export const getCities = async (req, res) => {
 
     const cities = await prisma.city.findMany({
       where,
-      include: {
-        booklets: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            image: true,
-            status: true,
-          },
-        },
-      },
       orderBy: { name: 'asc' },
     });
 

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -63,6 +64,7 @@ model Booklet {
   bookletOffers     BookletOffer[]
   bookletCategories BookletCategory[]
 
+  @@index([cityId])
   @@map("booklets")
 }
 
@@ -85,6 +87,7 @@ model Offer {
   addOnOffers        AddOnOffer[]
   userCoupons        UserCoupon[]
 
+  @@index([placeId])
   @@map("offers")
 }
 
@@ -118,6 +121,7 @@ model CartItem {
   itemId   String @map("item_id")
   cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
+  @@index([itemType, itemId])
   @@map("cart_items")
 }
 
@@ -136,6 +140,7 @@ model Order {
   items           OrderItem[]
   payments        Payment[]
 
+  @@index([userId, status])
   @@map("orders")
 }
 
@@ -147,6 +152,7 @@ model OrderItem {
   price    Float
   order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([itemType, itemId])
   @@map("order_items")
 }
 
@@ -234,6 +240,8 @@ model Place {
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   offers      Offer[]
 
+  @@index([cityId])
+  @@index([categoryId])
   @@map("places")
 }
 
@@ -262,6 +270,7 @@ model AddOn {
   addOnOffers     AddOnOffer[]
   addOnCategories AddOnCategory[]
 
+  @@index([cityId])
   @@map("add_ons")
 }
 

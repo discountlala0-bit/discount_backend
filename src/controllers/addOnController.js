@@ -18,6 +18,7 @@ export const getAddOnsByCity = async (req, res) => {
 
     const addOns = await prisma.addOn.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         city: true,
         addOnCategories: { include: { category: true } },

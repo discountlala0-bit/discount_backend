@@ -18,6 +18,7 @@ export const getUserCoupons = async (req, res) => {
     const [coupons, total] = await Promise.all([
       prisma.userCoupon.findMany({
         where,
+        relationLoadStrategy: 'join',
         include: { offer: { include: { place: true } }, user: true },
         orderBy: { createdAt: 'desc' },
         skip: (pageNum - 1) * limitNum,
@@ -26,15 +27,9 @@ export const getUserCoupons = async (req, res) => {
       prisma.userCoupon.count({ where }),
     ]);
 
-    const bookletOfferIds = new Set(
-      (await prisma.bookletOffer.findMany({ select: { offerId: true } }))
-        .map(bo => bo.offerId)
-    );
-
-    const data = coupons.map(c => ({
-      ...c,
-      isBookletOrigin: c.isBookletOrigin || bookletOfferIds.has(c.offerId),
-    }));
+    // isBookletOrigin is set correctly at creation time (see couponGeneration.js),
+    // so no need to re-derive it here with a full bookletOffer table scan.
+    const data = coupons;
 
     res.json({
       success: true,
