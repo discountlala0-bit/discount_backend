@@ -174,11 +174,6 @@ export const getBookletsByCity = async (req, res) => {
     const { city_id } = req.params;
     const { status } = req.query;
 
-    const city = await prisma.city.findUnique({ where: { id: city_id } });
-    if (!city) {
-      return res.status(404).json({ success: false, error: 'City not found' });
-    }
-
     const where = { cityId: city_id };
     if (status) {
       where.status = status;
@@ -211,28 +206,32 @@ export const getBookletsByCity = async (req, res) => {
       } catch (_) {}
     }
 
-    const bookletsWithUserInfo = await Promise.all(booklets.map(async (booklet) => {
-      let purchasedAt = null;
-      let expiresAt = null;
-
-      if (userId) {
-        const order = await prisma.order.findFirst({
+    const userBookletOrders = userId
+      ? await prisma.order.findMany({
           where: {
             userId,
             status: 'completed',
-            items: { some: { itemType: 'booklet', itemId: booklet.id } },
+            items: { some: { itemType: 'booklet' } },
           },
+          include: { items: { where: { itemType: 'booklet' } } },
           orderBy: { createdAt: 'desc' },
-          select: { createdAt: true },
-        });
+        })
+      : [];
 
-        if (order) {
-          purchasedAt = order.createdAt;
-          if (booklet.validity) {
-            expiresAt = new Date(order.createdAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000);
-          }
+    const userPurchaseMap = new Map();
+    for (const order of userBookletOrders) {
+      for (const item of order.items) {
+        if (!userPurchaseMap.has(item.itemId)) {
+          userPurchaseMap.set(item.itemId, order.createdAt);
         }
       }
+    }
+
+    const bookletsWithUserInfo = booklets.map((booklet) => {
+      const purchasedAt = userPurchaseMap.get(booklet.id) || null;
+      const expiresAt = (purchasedAt && booklet.validity)
+        ? new Date(purchasedAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000)
+        : null;
 
       return {
         ...booklet,
@@ -240,7 +239,7 @@ export const getBookletsByCity = async (req, res) => {
         purchasedAt,
         expiresAt,
       };
-    }));
+    });
 
     res.json({ success: true, data: bookletsWithUserInfo });
   } catch (error) {

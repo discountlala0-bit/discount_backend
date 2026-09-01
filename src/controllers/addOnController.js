@@ -5,11 +5,6 @@ export const getAddOnsByCity = async (req, res) => {
     const { city_id } = req.params;
     const { status, category_id } = req.query;
 
-    const city = await prisma.city.findUnique({ where: { id: city_id } });
-    if (!city) {
-      return res.status(404).json({ success: false, error: 'City not found' });
-    }
-
     const where = { cityId: city_id };
     if (status) {
       where.status = status;

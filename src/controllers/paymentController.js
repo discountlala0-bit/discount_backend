@@ -3,85 +3,122 @@ import Razorpay from 'razorpay';
 import { buildOrderItemsAndTotals } from '../lib/orderPricing.js';
 import { createCouponsForCompletedOrder } from '../lib/couponGeneration.js';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+const getRazorpayInstance = () => {
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+};
 
 // Create Razorpay order (creates order from cart if order_id not provided)
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { amount, currency = 'INR', receipt, order_id } = req.body;
+    const { amount, currency = 'INR', receipt, order_id, distributor_code, referral_code, booklet_id, item_type, item_id, items } = req.body;
     const userId = req.user.id; // From auth middleware
 
     let finalOrderId = order_id;
+    let payableAmount = amount;
 
     // If no order_id provided, create order from cart
     if (!finalOrderId) {
       // Get user's cart
-      const cart = await prisma.cart.findUnique({
+      let cart = await prisma.cart.findUnique({
         where: { userId },
         include: { items: true }
       });
+
+      const targetItemId = booklet_id || item_id;
+      const targetItemType = item_type || (booklet_id ? 'booklet' : null);
+
+      if ((!cart || cart.items.length === 0) && targetItemId && targetItemType) {
+        if (!cart) {
+          cart = await prisma.cart.create({ data: { userId } });
+        }
+        await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            itemType: targetItemType,
+            itemId: targetItemId,
+          }
+        });
+        cart = await prisma.cart.findUnique({
+          where: { userId },
+          include: { items: true }
+        });
+      } else if ((!cart || cart.items.length === 0) && items && Array.isArray(items) && items.length > 0) {
+        if (!cart) {
+          cart = await prisma.cart.create({ data: { userId } });
+        }
+        await prisma.cartItem.createMany({
+          data: items.map(i => ({
+            cartId: cart.id,
+            itemType: i.itemType || i.item_type,
+            itemId: i.itemId || i.item_id,
+          }))
+        });
+        cart = await prisma.cart.findUnique({
+          where: { userId },
+          include: { items: true }
+        });
+      }
 
       if (!cart || cart.items.length === 0) {
         return res.status(400).json({ success: false, error: 'Cart is empty' });
       }
 
-      // Calculate total amount and prepare order items with prices
-      let totalAmount = 0;
-      const orderItemsData = [];
-      for (const item of cart.items) {
-        let price = 0;
-        if (item.itemType === 'booklet') {
-          const booklet = await prisma.booklet.findUnique({
-            where: { id: item.itemId }
-          });
-          if (booklet) price = booklet.price;
-        } else if (item.itemType === 'add_on') {
-          const addOn = await prisma.addOn.findUnique({
-            where: { id: item.itemId },
-            include: {
-              offers: {
-                include: { offer: true }
-              }
-            }
-          });
-          if (addOn) {
-            const offerPrices = addOn.offers.map(ao => ao.offer.price);
-            price = offerPrices.length > 0 ? Math.min(...offerPrices) : 0;
-          }
-        }
-        totalAmount += price;
-        orderItemsData.push({
-          itemType: item.itemType,
-          itemId: item.itemId,
-          price
+      let distributor = null;
+      if (distributor_code) {
+        distributor = await prisma.distributor.findUnique({
+          where: { referralCode: distributor_code },
         });
+        if (!distributor) {
+          return res.status(400).json({ success: false, error: 'Invalid distributor code' });
+        }
       }
+
+      let referralApplied = false;
+      if (referral_code) {
+        const referrer = await prisma.user.findUnique({
+          where: { referralCode: referral_code },
+        });
+        if (referrer) {
+          referralApplied = true;
+        }
+      }
+
+      const { itemsData, totalAmount, discountAmount } = await buildOrderItemsAndTotals(
+        cart.items,
+        distributor
+      );
 
       // Create order
       const order = await prisma.order.create({
         data: {
           userId,
           totalAmount,
+          discountAmount,
           status: 'pending',
+          distributorId: distributor?.id ?? null,
+          referralApplied,
           items: {
-            create: orderItemsData
+            create: itemsData
           }
         },
         include: { items: true }
       });
 
       finalOrderId = order.id;
+      payableAmount = totalAmount;
     }
 
-    if (!amount) {
+    if (payableAmount === undefined || payableAmount === null) {
       return res.status(400).json({ success: false, error: 'Amount is required' });
     }
 
+    const razorpay = getRazorpayInstance();
+
     const options = {
-      amount: Math.round(amount * 100), // Razorpay expects amount in paise
+      amount: Math.round(payableAmount * 100), // Razorpay expects amount in paise
       currency,
       receipt: receipt || `receipt_${finalOrderId.substring(0, 32)}`,
       notes: {
@@ -95,6 +132,7 @@ export const createRazorpayOrder = async (req, res) => {
       success: true,
       message: 'Razorpay order created',
       data: {
+        key_id: process.env.RAZORPAY_KEY_ID || '',
         razorpay_order_id: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
@@ -169,6 +207,12 @@ export const verifyRazorpayPayment = async (req, res) => {
           where: { id: order.userId },
           data: { hasBooklet: true },
         });
+      }
+
+      // Clear user cart
+      const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
+      if (cart) {
+        await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
       }
     }
 
