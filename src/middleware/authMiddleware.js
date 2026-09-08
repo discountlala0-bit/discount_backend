@@ -31,7 +31,7 @@ export const authMiddleware = async (req, res, next) => {
   if (!user.isActive) {
     return res.status(403).json({
       success: false,
-      error: 'Account deactivated. Please contact admin to reactivate your account.',
+      error: 'Admin has deactivated your account.',
     });
   }
 

@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma.js';
 import { uploadToCloudinary } from '../lib/cloudinary.js';
+import { admin } from '../../config/firebaseAdmin.js';
 
 export const getMe = async (req, res) => {
   try {
@@ -64,20 +65,60 @@ export const updateMe = async (req, res) => {
   }
 };
 
-export const deactivateAccount = async (req, res) => {
+export const deleteAccount = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    await prisma.user.update({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
-      data: {
-        isActive: false,
-        deactivatedAt: new Date(),
-      },
+      select: { id: true, firebaseUid: true },
     });
 
-    res.json({ success: true, message: 'Account deactivated successfully' });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete user coupons
+      await tx.userCoupon.deleteMany({ where: { userId } });
+
+      // Delete cart items and carts
+      await tx.cartItem.deleteMany({ where: { cart: { userId } } });
+      await tx.cart.deleteMany({ where: { userId } });
+
+      // Delete order items, payments, and orders
+      await tx.orderItem.deleteMany({ where: { order: { userId } } });
+      await tx.payment.deleteMany({ where: { order: { userId } } });
+      await tx.order.deleteMany({ where: { userId } });
+
+      // Delete referral logs (both where user is referrer or referred user)
+      await tx.referralLog.deleteMany({
+        where: {
+          OR: [
+            { referrerId: userId },
+            { referredUserId: userId },
+          ],
+        },
+      });
+
+      // Delete user record permanently
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    // Delete user from Firebase Auth if present
+    if (user.firebaseUid) {
+      try {
+        if (admin.apps.length) {
+          await admin.auth().deleteUser(user.firebaseUid);
+        }
+      } catch (fbError) {
+        console.error('Failed to delete user from Firebase Auth:', fbError.message);
+      }
+    }
+
+    res.json({ success: true, message: 'Account deleted permanently' });
   } catch (error) {
+    console.error('Error deleting user account:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

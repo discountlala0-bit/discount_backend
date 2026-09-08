@@ -58,7 +58,7 @@ export const verifyIdToken = async (req, res) => {
   if (!user.isActive) {
     return res.status(403).json({
       success: false,
-      error: 'Account deactivated. Please contact admin to reactivate your account.',
+      error: 'Admin has deactivated your account.',
     });
   }
 
@@ -84,12 +84,26 @@ export const register = async (req, res) => {
   const { firebaseIdToken, email, name } = req.body;
 
   const decoded = await firebaseVerifyIdToken(firebaseIdToken);
+  if (!decoded) {
+    return res.status(401).json({ error: 'Invalid Firebase ID token' });
+  }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { firebaseUid: decoded.uid },
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { firebaseUid: decoded.uid },
+        ...(decoded.phone_number ? [{ phoneNumber: decoded.phone_number }] : []),
+      ],
+    },
   });
 
   if (existingUser) {
+    if (!existingUser.isActive) {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin has deactivated your account.',
+      });
+    }
     return res.status(400).json({ error: 'User already exists' });
   }
 
@@ -102,13 +116,14 @@ export const register = async (req, res) => {
     },
   });
 
+  const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
   const token = jwt.sign(
     {
       id: user.id,
       firebaseUid: user.firebaseUid,
       phoneNumber: user.phoneNumber,
     },
-    process.env.JWT_SECRET,
+    jwtSecret,
     { expiresIn: '7d' }
   );
 
