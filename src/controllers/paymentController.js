@@ -5,8 +5,8 @@ import { createCouponsForCompletedOrder } from '../lib/couponGeneration.js';
 
 const getRazorpayInstance = () => {
   return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TWKZ5Y9DvTbNF9',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'V50Ot5WFzwOC1vQxKKUY1Q6c',
   });
 };
 
@@ -132,7 +132,7 @@ export const createRazorpayOrder = async (req, res) => {
       success: true,
       message: 'Razorpay order created',
       data: {
-        key_id: process.env.RAZORPAY_KEY_ID || '',
+        key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_TWKZ5Y9DvTbNF9',
         razorpay_order_id: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
@@ -161,8 +161,9 @@ export const verifyRazorpayPayment = async (req, res) => {
 
     // Verify signature
     const crypto = await import('crypto');
+    const secret = process.env.RAZORPAY_KEY_SECRET || 'V50Ot5WFzwOC1vQxKKUY1Q6c';
     const generatedSignature = crypto.default
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .createHmac('sha256', secret)
       .update(razorpay_order_id + '|' + razorpay_payment_id)
       .digest('hex');
 
