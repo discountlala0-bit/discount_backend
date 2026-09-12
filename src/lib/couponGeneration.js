@@ -18,68 +18,74 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
 
   if (!order) return;
 
-  for (const item of order.items) {
+  const couponsToCreate = [];
+
+  // Fetch every booklet/offer lookup needed for this order in parallel
+  // instead of one DB round-trip per item, then build all coupon rows
+  // in memory so they can be inserted with a single createMany call.
+  await Promise.all(order.items.map(async (item) => {
     if (item.itemType === 'booklet') {
-      const booklet = await prisma.booklet.findUnique({
-        where: { id: item.itemId },
-      });
+      const [booklet, bookletOffers] = await Promise.all([
+        prisma.booklet.findUnique({ where: { id: item.itemId } }),
+        prisma.bookletOffer.findMany({
+          where: { bookletId: item.itemId },
+          select: { offerId: true, quantity: true },
+        }),
+      ]);
 
-      if (!booklet) continue;
+      if (!booklet) return;
 
-      const bookletOffers = await prisma.bookletOffer.findMany({
-        where: { bookletId: item.itemId },
-        select: { offerId: true, quantity: true },
-      });
+      const expiresAt = new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000);
 
       for (const bo of bookletOffers) {
         for (let i = 0; i < (bo.quantity || 1); i++) {
           const { id, code } = generateRedeemCode();
-          await prisma.userCoupon.create({
-            data: {
-              id,
-              redeemCode: code,
-              userId,
-              offerId: bo.offerId,
-              status: 'active',
-              isBookletOrigin: true,
-              expiresAt: new Date(Date.now() + booklet.validity * 24 * 60 * 60 * 1000),
-            },
+          couponsToCreate.push({
+            id,
+            redeemCode: code,
+            userId,
+            offerId: bo.offerId,
+            status: 'active',
+            isBookletOrigin: true,
+            expiresAt,
           });
         }
       }
     } else if (item.itemType === 'add_on' || item.itemType === 'coupon') {
-      const offer = await prisma.offer.findUnique({
-        where: { id: item.itemId },
-      });
+      const [offer, addOnOffer] = await Promise.all([
+        prisma.offer.findUnique({ where: { id: item.itemId } }),
+        item.itemType === 'add_on'
+          ? prisma.addOnOffer.findFirst({
+              where: { offerId: item.itemId },
+              select: { quantity: true },
+            })
+          : null,
+      ]);
 
-      if (!offer) continue;
+      if (!offer) return;
 
       // Add-on offers can also carry a quantity multiplier — a single
       // purchase of the offer grants that many independent redemptions.
-      let quantity = 1;
-      if (item.itemType === 'add_on') {
-        const addOnOffer = await prisma.addOnOffer.findFirst({
-          where: { offerId: item.itemId },
-          select: { quantity: true },
-        });
-        if (addOnOffer) quantity = addOnOffer.quantity || 1;
-      }
+      const quantity = addOnOffer?.quantity || 1;
+      const expiresAt = offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null;
 
       for (let i = 0; i < quantity; i++) {
         const { id, code } = generateRedeemCode();
-        await prisma.userCoupon.create({
-          data: {
-            id,
-            redeemCode: code,
-            userId,
-            offerId: item.itemId,
-            status: 'active',
-            isBookletOrigin: false,
-            expiresAt: offer.validity ? new Date(Date.now() + offer.validity * 24 * 60 * 60 * 1000) : null,
-          },
+        couponsToCreate.push({
+          id,
+          redeemCode: code,
+          userId,
+          offerId: item.itemId,
+          status: 'active',
+          isBookletOrigin: false,
+          expiresAt,
         });
       }
     }
+  }));
+
+  if (couponsToCreate.length > 0) {
+    await prisma.userCoupon.createMany({ data: couponsToCreate });
   }
 };
 
