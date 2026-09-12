@@ -127,7 +127,7 @@ export const clearCart = async (req, res) => {
     const cart = await prisma.cart.findUnique({ where: { userId } });
 
     if (!cart) {
-      return res.status(404).json({ success: false, error: 'Cart not found' });
+      return res.json({ success: true, message: 'Cart is already empty' });
     }
 
     await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });

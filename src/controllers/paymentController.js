@@ -180,6 +180,20 @@ export const verifyRazorpayPayment = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
+    if (order.status === 'completed') {
+      return res.json({
+        success: true,
+        message: 'Payment already verified and completed',
+        data: {
+          order: {
+            id: order.id,
+            status: 'completed',
+            totalAmount: order.totalAmount
+          }
+        }
+      });
+    }
+
     // Create payment record
     const payment = await prisma.payment.create({
       data: {
@@ -240,7 +254,12 @@ export const handleFailedPayment = async (req, res) => {
     const { order_id, razorpay_payment_id, failure_reason } = req.body;
 
     if (!order_id) {
-      return res.status(400).json({ success: false, error: 'Order ID is required' });
+      return res.status(404).json({ success: false, error: 'Order ID is required' });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: order_id } });
+    if (order && order.status === 'completed') {
+      return res.json({ success: true, message: 'Order is already completed, ignoring failure log' });
     }
 
     // Create failed payment record
