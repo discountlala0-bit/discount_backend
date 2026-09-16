@@ -277,3 +277,25 @@ export const removeOfferFromBooklet = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+// Toggles whether this coupon is handed out to NEW booklet buyers, without
+// unlinking it. Users who already purchased the booklet keep it either way.
+export const setBookletOfferVisibility = async (req, res) => {
+  try {
+    const { booklet_id, offer_id } = req.params;
+    const { hidden_for_new_users } = req.body;
+
+    const updated = await prisma.bookletOffer.update({
+      where: { bookletId_offerId: { bookletId: booklet_id, offerId: offer_id } },
+      data: { hiddenForNewUsers: !!hidden_for_new_users },
+    });
+
+    res.json({
+      success: true,
+      message: hidden_for_new_users ? 'Offer hidden from new users' : 'Offer visible to new users',
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

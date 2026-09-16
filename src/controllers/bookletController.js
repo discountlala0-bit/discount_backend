@@ -75,7 +75,63 @@ export const getBooklets = async (req, res) => {
   }
 };
 
+// Public booklet detail — offers marked hiddenForNewUsers are stripped out
+// unless the requesting user already owns this booklet (a completed order
+// for it), so existing buyers keep seeing coupons removed for new buyers.
 export const getBookletById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booklet = await prisma.booklet.findUnique({
+      where: { id },
+      include: {
+        city: true,
+        bookletCategories: { include: { category: true } },
+        bookletOffers: {
+          include: {
+            offer: { include: { place: true } },
+          },
+        },
+      },
+    });
+
+    if (!booklet) {
+      return res.status(404).json({ success: false, error: 'Booklet not found' });
+    }
+
+    let hasPurchased = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = verifyToken(token);
+        if (decoded && decoded.id) {
+          const order = await prisma.order.findFirst({
+            where: {
+              userId: decoded.id,
+              status: 'completed',
+              items: { some: { itemType: 'booklet', itemId: id } },
+            },
+            select: { id: true },
+          });
+          hasPurchased = !!order;
+        }
+      } catch (_) {}
+    }
+
+    const bookletOffers = hasPurchased
+      ? booklet.bookletOffers
+      : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
+
+    res.json({ success: true, data: { ...booklet, bookletOffers } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Admin booklet detail — always returns every linked offer (including ones
+// hidden from new users) so the admin panel can manage visibility.
+export const getBookletByIdAdmin = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -233,10 +289,16 @@ export const getBookletsByCity = async (req, res) => {
       const expiresAt = (purchasedAt && booklet.validity)
         ? new Date(purchasedAt.getTime() + booklet.validity * 24 * 60 * 60 * 1000)
         : null;
+      // Non-owners don't see offers the admin has hidden from new buyers;
+      // anyone who already purchased this booklet keeps seeing everything.
+      const bookletOffers = purchasedAt
+        ? booklet.bookletOffers
+        : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
 
       return {
         ...booklet,
-        offersCount: booklet.bookletOffers.reduce((acc, bo) => acc + (bo.quantity || 1), 0),
+        bookletOffers,
+        offersCount: bookletOffers.reduce((acc, bo) => acc + (bo.quantity || 1), 0),
         purchasedAt,
         expiresAt,
       };

@@ -27,8 +27,10 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
     if (item.itemType === 'booklet') {
       const [booklet, bookletOffers] = await Promise.all([
         prisma.booklet.findUnique({ where: { id: item.itemId } }),
+        // Offers hidden from new users are excluded here so a fresh purchase
+        // never grants them — existing owners keep theirs via ensureUserBookletCoupons.
         prisma.bookletOffer.findMany({
-          where: { bookletId: item.itemId },
+          where: { bookletId: item.itemId, hiddenForNewUsers: false },
           select: { offerId: true, quantity: true },
         }),
       ]);
@@ -91,7 +93,9 @@ export const createCouponsForCompletedOrder = async (orderId, userId) => {
 
 // Ensures that for any booklets purchased by the user, UserCoupon rows exist
 // for every offer currently in those booklets (including offers added after purchase
-// or quantity increases).
+// or quantity increases). Runs for users who already own the booklet, so it
+// intentionally does NOT filter out hiddenForNewUsers offers — that flag only
+// blocks a *new* purchase from granting the coupon, not an existing owner.
 export const ensureUserBookletCoupons = async (userId) => {
   try {
     const completedOrders = await prisma.order.findMany({

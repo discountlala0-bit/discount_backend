@@ -92,12 +92,13 @@ model Offer {
 }
 
 model BookletOffer {
-  id        String  @id @default(uuid())
-  bookletId String  @map("booklet_id")
-  offerId   String  @map("offer_id")
-  quantity  Int     @default(1)
-  booklet   Booklet @relation(fields: [bookletId], references: [id], onDelete: Cascade)
-  offer     Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  id                String  @id @default(uuid())
+  bookletId         String  @map("booklet_id")
+  offerId           String  @map("offer_id")
+  quantity          Int     @default(1)
+  hiddenForNewUsers Boolean @default(false) @map("hidden_for_new_users")
+  booklet           Booklet @relation(fields: [bookletId], references: [id], onDelete: Cascade)
+  offer             Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@unique([bookletId, offerId])
   @@map("booklet_offers")

@@ -7,6 +7,7 @@ import {
   deleteOffer,
   addOfferToBooklet,
   removeOfferFromBooklet,
+  setBookletOfferVisibility,
 } from '../../controllers/admin/offerController.js';
 
 const router = express.Router();
@@ -18,5 +19,6 @@ router.put('/:id', updateOffer);
 router.delete('/:id', deleteOffer);
 router.post('/booklet/add', addOfferToBooklet);
 router.delete('/booklet/:booklet_id/offer/:offer_id', removeOfferFromBooklet);
+router.patch('/booklet/:booklet_id/offer/:offer_id/visibility', setBookletOfferVisibility);
 
 export default router;
