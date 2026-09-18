@@ -15,6 +15,7 @@ import adminCategoryRoutes from './src/routes/admin/categoryRoutes.js';
 import adminPlaceRoutes from './src/routes/admin/placeRoutes.js';
 import adminUserRoutes from './src/routes/admin/userRoutes.js';
 import adminUploadRoutes from './src/routes/admin/uploadRoutes.js';
+import adminLegalRoutes from './src/routes/admin/legalRoutes.js';
 import adminAuthRoutes from './src/routes/adminAuthRoutes.js';
 
 import bookletRoutes from './src/routes/bookletRoutes.js';
@@ -29,6 +30,7 @@ import userRoutes from './src/routes/userRoutes.js';
 import cityRoutes from './src/routes/cityRoutes.js';
 import bannerRoutes from './src/routes/bannerRoutes.js';
 import categoryRoutes from './src/routes/categoryRoutes.js';
+import legalRoutes from './src/routes/legalRoutes.js';
 
 import { prisma } from './lib/prisma.js';
 
@@ -87,6 +89,7 @@ app.use('/api/admin/categories', adminCategoryRoutes);
 app.use('/api/admin/places', adminPlaceRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/upload', adminUploadRoutes);
+app.use('/api/admin/legal', adminLegalRoutes);
 
 app.use('/api/booklets', bookletRoutes);
 app.use('/api/add-ons', addOnRoutes);
@@ -100,6 +103,7 @@ app.use('/api/distributors', distributorRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/referrals', referralRoutes);
+app.use('/api/legal', legalRoutes);
 
 // -------------------- 404 Handler --------------------
 

@@ -310,3 +310,19 @@ model Banner {
 
   @@map("banners")
 }
+
+model TermsAndConditions {
+  id        String   @id @default(uuid())
+  content   Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("terms_and_conditions")
+}
+
+model PrivacyPolicy {
+  id        String   @id @default(uuid())
+  content   Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("privacy_policy")
+}
