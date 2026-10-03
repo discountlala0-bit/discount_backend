@@ -137,7 +137,7 @@ export const addOfferToAddOn = async (req, res) => {
     const { add_on_id, offer_id } = req.body;
     let quantity = parseInt(req.body.quantity, 10);
     if (!Number.isInteger(quantity) || quantity < 1) quantity = 1;
-    if (quantity > 4) quantity = 4;
+    if (quantity > 100) quantity = 100;
 
     // If the offer is already in this add-on, just update its quantity
     // (e.g. changing 1x to 4x) instead of rejecting the request.

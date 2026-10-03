@@ -3,7 +3,7 @@ import { verifyToken } from '../../lib/jwt.js';
 
 export const createBooklet = async (req, res) => {
   try {
-    const { city_id, title, description, price, validity, image, status, categories } = req.body;
+    const { city_id, title, description, price, validity, popularity, image, status, categories } = req.body;
 
     if (!city_id || !title || price === undefined) {
       return res.status(400).json({ success: false, error: 'City ID, title, and price are required' });
@@ -21,6 +21,7 @@ export const createBooklet = async (req, res) => {
         description,
         price,
         validity: validity || 365,
+        popularity: popularity !== undefined ? (parseInt(popularity) || 0) : 0,
         image,
         status: status || 'active',
       },
@@ -161,7 +162,7 @@ export const getBookletByIdAdmin = async (req, res) => {
 export const updateBooklet = async (req, res) => {
   try {
     const { id } = req.params;
-    const { city_id, title, description, price, validity, image, status, categories } = req.body;
+    const { city_id, title, description, price, validity, popularity, image, status, categories } = req.body;
 
     const booklet = await prisma.booklet.findUnique({ where: { id } });
     if (!booklet) {
@@ -183,6 +184,7 @@ export const updateBooklet = async (req, res) => {
         ...(description !== undefined && { description }),
         ...(price !== undefined && { price }),
         ...(validity !== undefined && { validity }),
+        ...(popularity !== undefined && { popularity: parseInt(popularity) || 0 }),
         ...(image !== undefined && { image }),
         ...(status && { status }),
       },
