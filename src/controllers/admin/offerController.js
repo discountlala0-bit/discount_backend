@@ -29,7 +29,7 @@ export const createOffer = async (req, res) => {
           offerType: 'booklet',
           status: status || 'active',
           ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
-          popularity: 0,
+          popularity: popularity !== undefined ? (parseInt(popularity) || 0) : 0,
         },
         include: { place: { include: { category: true } } },
       });
@@ -74,7 +74,7 @@ export const createOffer = async (req, res) => {
       offerType: offer_type || 'add_on',
       status: status || 'active',
       ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
-      popularity: (offer_type === 'add_on' && popularity !== undefined) ? (parseInt(popularity) || 0) : 0,
+      popularity: popularity !== undefined ? (parseInt(popularity) || 0) : 0,
     };
 
     const offer = await prisma.offer.create({
@@ -174,7 +174,7 @@ export const updateOffer = async (req, res) => {
         ...(place_id && { placeId: place_id }),
         ...(status && { status }),
         ...(terms_and_conditions !== undefined && { termsAndConditions: terms_and_conditions }),
-        ...(popularity !== undefined && offer.offerType === 'add_on' && { popularity: parseInt(popularity) || 0 }),
+        ...(popularity !== undefined && { popularity: parseInt(popularity) || 0 }),
       },
       include: { place: { include: { category: true } } },
     });

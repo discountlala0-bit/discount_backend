@@ -67,7 +67,11 @@ export const getBooklets = async (req, res) => {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ popularity: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    booklets.forEach((b) => {
+      b.bookletOffers?.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
     });
 
     res.json({ success: true, data: booklets });
@@ -124,6 +128,8 @@ export const getBookletById = async (req, res) => {
       ? booklet.bookletOffers
       : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
 
+    bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+
     res.json({ success: true, data: { ...booklet, bookletOffers } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -148,6 +154,10 @@ export const getBookletByIdAdmin = async (req, res) => {
         },
       },
     });
+
+    if (booklet?.bookletOffers) {
+      booklet.bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+    }
 
     if (!booklet) {
       return res.status(404).json({ success: false, error: 'Booklet not found' });
@@ -251,7 +261,7 @@ export const getBookletsByCity = async (req, res) => {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ popularity: 'asc' }, { createdAt: 'desc' }],
     });
 
     // Optional auth — extract user if token present
@@ -296,6 +306,8 @@ export const getBookletsByCity = async (req, res) => {
       const bookletOffers = purchasedAt
         ? booklet.bookletOffers
         : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
+
+      bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
 
       return {
         ...booklet,
@@ -353,6 +365,11 @@ export const getPurchasedBooklets = async (req, res) => {
           },
         },
       },
+      orderBy: [{ popularity: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    booklets.forEach((b) => {
+      b.bookletOffers?.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
     });
 
     const result = booklets.map((booklet) => {
@@ -405,7 +422,7 @@ export const filterBooklets = async (req, res) => {
     const booklets = await prisma.booklet.findMany({
       where,
       include: { city: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ popularity: 'asc' }, { createdAt: 'desc' }],
     });
 
     res.json({ success: true, data: booklets });
