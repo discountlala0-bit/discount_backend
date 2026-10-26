@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../lib/prisma.js';
-import { verifyToken, buildUserPayload } from '../../lib/jwt.js';
+import { generateToken, verifyToken, buildUserPayload } from '../../lib/jwt.js';
 import { admin } from '../../config/firebaseAdmin.js';
 
 async function firebaseVerifyIdToken(idToken) {
@@ -62,16 +62,7 @@ export const verifyIdToken = async (req, res) => {
     });
   }
 
-  const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-  const token = jwt.sign(
-    {
-      id: user.id,
-      firebaseUid: user.firebaseUid,
-      phoneNumber: user.phoneNumber,
-    },
-    jwtSecret,
-    { expiresIn: '7d' }
-  );
+  const token = generateToken(buildUserPayload(user));
 
   res.json({
     isNewUser: false,
@@ -116,16 +107,7 @@ export const register = async (req, res) => {
     },
   });
 
-  const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-  const token = jwt.sign(
-    {
-      id: user.id,
-      firebaseUid: user.firebaseUid,
-      phoneNumber: user.phoneNumber,
-    },
-    jwtSecret,
-    { expiresIn: '7d' }
-  );
+  const token = generateToken(buildUserPayload(user));
 
   res.status(201).json({
     success: true,

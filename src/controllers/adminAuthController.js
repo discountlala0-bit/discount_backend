@@ -45,7 +45,7 @@ export const adminLogin = async (req, res) => {
         phoneNumber: user.phoneNumber,
       },
       jwtSecret,
-      { expiresIn: '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '120d' }
     );
 
     res.json({
