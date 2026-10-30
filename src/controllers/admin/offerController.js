@@ -95,12 +95,25 @@ export const getOffers = async (req, res) => {
     const where = {};
     if (status) where.status = status;
     if (place_id) where.placeId = place_id;
-    if (city_id) where.place = { cityId: city_id };
+    if (city_id) {
+      where.place = {
+        OR: [
+          { cityId: city_id },
+          { placeCities: { some: { cityId: city_id } } },
+        ],
+      };
+    }
 
     const offers = await prisma.offer.findMany({
       where,
       include: {
-        place: { include: { category: true, city: true } },
+        place: {
+          include: {
+            category: true,
+            city: true,
+            placeCities: { include: { city: true } },
+          },
+        },
         bookletOffers: { select: { bookletId: true } },
         addOnOffers: { select: { addOnId: true } },
       },

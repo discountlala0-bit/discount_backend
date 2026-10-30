@@ -35,16 +35,17 @@ model User {
 }
 
 model City {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  state     String
-  country   String    @default("India")
-  status    String    @default("active")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  booklets  Booklet[]
-  addOns    AddOn[]
-  places    Place[]
+  id          String      @id @default(uuid())
+  name        String      @unique
+  state       String
+  country     String      @default("India")
+  status      String      @default("active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  booklets    Booklet[]
+  addOns      AddOn[]
+  places      Place[]
+  placeCities PlaceCity[]
 
   @@map("cities")
 }
@@ -227,24 +228,39 @@ model Category {
 }
 
 model Place {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   name        String
-  cityId      String?  @map("city_id")
-  categoryId  String   @map("category_id")
+  cityId      String?     @map("city_id")
+  categoryId  String      @map("category_id")
   address     String?
   phone       String?
   description String?
   image       String?
-  status      String   @default("active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  city        City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  status      String      @default("active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  city        City?       @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   offers      Offer[]
+  placeCities PlaceCity[]
 
   @@index([cityId])
   @@index([categoryId])
   @@map("places")
+}
+
+model PlaceCity {
+  id        String   @id @default(uuid())
+  placeId   String   @map("place_id")
+  cityId    String   @map("city_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, cityId])
+  @@index([cityId])
+  @@index([placeId])
+  @@map("place_cities")
 }
 
 model BookletCategory {

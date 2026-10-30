@@ -5,7 +5,25 @@ export const getAddOnsByCity = async (req, res) => {
     const { city_id } = req.params;
     const { status, category_id } = req.query;
 
-    const where = { cityId: city_id };
+    const where = {
+      OR: [
+        { cityId: city_id },
+        {
+          addOnOffers: {
+            some: {
+              offer: {
+                place: {
+                  OR: [
+                    { cityId: city_id },
+                    { placeCities: { some: { cityId: city_id } } },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
     if (status) {
       where.status = status;
     }
