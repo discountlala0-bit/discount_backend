@@ -271,6 +271,31 @@ export const addOfferToBooklet = async (req, res) => {
       data: { bookletId: booklet_id, offerId: offer_id, quantity },
     });
 
+    // Ensure place is linked in booklet_places
+    if (offer.placeId) {
+      const existingBP = await prisma.bookletPlace.findUnique({
+        where: {
+          bookletId_placeId: {
+            bookletId: booklet_id,
+            placeId: offer.placeId,
+          },
+        },
+      });
+      if (!existingBP) {
+        const lastBP = await prisma.bookletPlace.findFirst({
+          where: { bookletId: booklet_id },
+          orderBy: { priority: 'desc' },
+        });
+        await prisma.bookletPlace.create({
+          data: {
+            bookletId: booklet_id,
+            placeId: offer.placeId,
+            priority: (lastBP?.priority ?? 0) + 1,
+          },
+        });
+      }
+    }
+
     res.status(201).json({ success: true, message: 'Offer added to booklet', data: bookletOffer });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -281,9 +306,31 @@ export const removeOfferFromBooklet = async (req, res) => {
   try {
     const { booklet_id, offer_id } = req.params;
 
+    const bo = await prisma.bookletOffer.findUnique({
+      where: { bookletId_offerId: { bookletId: booklet_id, offerId: offer_id } },
+      include: { offer: true },
+    });
+
     await prisma.bookletOffer.delete({
       where: { bookletId_offerId: { bookletId: booklet_id, offerId: offer_id } },
     });
+
+    if (bo?.offer?.placeId) {
+      const remaining = await prisma.bookletOffer.findFirst({
+        where: {
+          bookletId: booklet_id,
+          offer: { placeId: bo.offer.placeId },
+        },
+      });
+      if (!remaining) {
+        await prisma.bookletPlace.deleteMany({
+          where: {
+            bookletId: booklet_id,
+            placeId: bo.offer.placeId,
+          },
+        });
+      }
+    }
 
     res.json({ success: true, message: 'Offer removed from booklet' });
   } catch (error) {

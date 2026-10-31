@@ -65,6 +65,7 @@ model Booklet {
   city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
   bookletOffers     BookletOffer[]
   bookletCategories BookletCategory[]
+  bookletPlaces     BookletPlace[]
 
   @@index([cityId])
   @@map("booklets")
@@ -104,6 +105,22 @@ model BookletOffer {
 
   @@unique([bookletId, offerId])
   @@map("booklet_offers")
+}
+
+model BookletPlace {
+  id        String   @id @default(uuid())
+  bookletId String   @map("booklet_id")
+  placeId   String   @map("place_id")
+  priority  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  booklet   Booklet  @relation(fields: [bookletId], references: [id], onDelete: Cascade)
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([bookletId, placeId])
+  @@index([bookletId])
+  @@index([placeId])
+  @@map("booklet_places")
 }
 
 model Cart {
@@ -243,6 +260,7 @@ model Place {
   category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   offers      Offer[]
   placeCities PlaceCity[]
+  bookletPlaces BookletPlace[]
 
   @@index([cityId])
   @@index([categoryId])

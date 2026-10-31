@@ -1,6 +1,17 @@
 import { prisma } from '../../lib/prisma.js';
 import { verifyToken } from '../../lib/jwt.js';
 
+function sortBookletOffers(bookletOffers, bookletPlaces = []) {
+  if (!bookletOffers || bookletOffers.length === 0) return;
+  const placePriorityMap = new Map((bookletPlaces || []).map((bp) => [bp.placeId, bp.priority]));
+  bookletOffers.sort((x, y) => {
+    const pX = placePriorityMap.get(x.offer?.placeId) ?? 999999;
+    const pY = placePriorityMap.get(y.offer?.placeId) ?? 999999;
+    if (pX !== pY) return pX - pY;
+    return (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0);
+  });
+}
+
 export const createBooklet = async (req, res) => {
   try {
     const { city_id, title, description, price, validity, popularity, image, status, categories } = req.body;
@@ -61,6 +72,7 @@ export const getBooklets = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
         bookletOffers: {
           include: {
             offer: { include: { place: true } },
@@ -71,7 +83,7 @@ export const getBooklets = async (req, res) => {
     });
 
     booklets.forEach((b) => {
-      b.bookletOffers?.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+      sortBookletOffers(b.bookletOffers, b.bookletPlaces);
     });
 
     res.json({ success: true, data: booklets });
@@ -92,6 +104,7 @@ export const getBookletById = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
         bookletOffers: {
           include: {
             offer: { include: { place: true } },
@@ -128,7 +141,7 @@ export const getBookletById = async (req, res) => {
       ? booklet.bookletOffers
       : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
 
-    bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+    sortBookletOffers(bookletOffers, booklet.bookletPlaces);
 
     res.json({ success: true, data: { ...booklet, bookletOffers } });
   } catch (error) {
@@ -147,6 +160,7 @@ export const getBookletByIdAdmin = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
         bookletOffers: {
           include: {
             offer: { include: { place: true } },
@@ -156,7 +170,7 @@ export const getBookletByIdAdmin = async (req, res) => {
     });
 
     if (booklet?.bookletOffers) {
-      booklet.bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+      sortBookletOffers(booklet.bookletOffers, booklet.bookletPlaces);
     }
 
     if (!booklet) {
@@ -253,6 +267,7 @@ export const getBookletsByCity = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
         bookletOffers: {
           include: {
             offer: {
@@ -307,7 +322,7 @@ export const getBookletsByCity = async (req, res) => {
         ? booklet.bookletOffers
         : booklet.bookletOffers.filter((bo) => !bo.hiddenForNewUsers);
 
-      bookletOffers.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+      sortBookletOffers(bookletOffers, booklet.bookletPlaces);
 
       return {
         ...booklet,
@@ -359,6 +374,7 @@ export const getPurchasedBooklets = async (req, res) => {
       include: {
         city: true,
         bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
         bookletOffers: {
           include: {
             offer: { include: { place: true } },
@@ -369,7 +385,7 @@ export const getPurchasedBooklets = async (req, res) => {
     });
 
     booklets.forEach((b) => {
-      b.bookletOffers?.sort((x, y) => (x.offer?.popularity ?? 0) - (y.offer?.popularity ?? 0));
+      sortBookletOffers(b.bookletOffers, b.bookletPlaces);
     });
 
     const result = booklets.map((booklet) => {
@@ -426,6 +442,122 @@ export const filterBooklets = async (req, res) => {
     });
 
     res.json({ success: true, data: booklets });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const getBookletPlaces = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booklet = await prisma.booklet.findUnique({
+      where: { id },
+      include: {
+        city: true,
+        bookletCategories: { include: { category: true } },
+        bookletPlaces: true,
+        bookletOffers: {
+          include: {
+            offer: {
+              include: { place: { include: { category: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!booklet) {
+      return res.status(404).json({ success: false, error: 'Booklet not found' });
+    }
+
+    const priorityMap = new Map((booklet.bookletPlaces || []).map((bp) => [bp.placeId, bp.priority]));
+    const placeMap = new Map();
+
+    for (const bo of booklet.bookletOffers || []) {
+      const place = bo.offer?.place;
+      if (!place) continue;
+
+      if (!placeMap.has(place.id)) {
+        placeMap.set(place.id, {
+          placeId: place.id,
+          name: place.name,
+          image: place.image,
+          address: place.address,
+          phone: place.phone,
+          category: place.category?.name || '—',
+          priority: priorityMap.get(place.id) ?? 999,
+          offersCount: bo.quantity || 1,
+        });
+      } else {
+        const item = placeMap.get(place.id);
+        item.offersCount += (bo.quantity || 1);
+      }
+    }
+
+    const places = Array.from(placeMap.values()).sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        booklet: {
+          id: booklet.id,
+          title: booklet.title,
+          image: booklet.image,
+          price: booklet.price,
+          validity: booklet.validity,
+          status: booklet.status,
+          cityName: booklet.city?.name ?? '—',
+          totalOffers: booklet.bookletOffers.reduce((sum, bo) => sum + (bo.quantity || 1), 0),
+          totalPlaces: places.length,
+        },
+        places,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updateBookletPlacesSequence = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { places } = req.body;
+
+    if (!Array.isArray(places)) {
+      return res.status(400).json({ success: false, error: 'places must be an array' });
+    }
+
+    const booklet = await prisma.booklet.findUnique({ where: { id } });
+    if (!booklet) {
+      return res.status(404).json({ success: false, error: 'Booklet not found' });
+    }
+
+    await prisma.$transaction(
+      places.map((item) =>
+        prisma.bookletPlace.upsert({
+          where: {
+            bookletId_placeId: {
+              bookletId: id,
+              placeId: item.placeId,
+            },
+          },
+          update: {
+            priority: parseInt(item.priority, 10) || 0,
+          },
+          create: {
+            bookletId: id,
+            placeId: item.placeId,
+            priority: parseInt(item.priority, 10) || 0,
+          },
+        })
+      )
+    );
+
+    res.json({ success: true, message: 'Places sequence updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
