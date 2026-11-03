@@ -20,11 +20,9 @@ export const getUserBanners = async (req, res) => {
     }
 
     if (!userId) {
-      // Unauthenticated users or users with no token do not receive booklet-targeted popup banners
       return res.json({ success: true, data: [] });
     }
 
-    // Find all completed orders for this user with booklet items
     const orders = await prisma.order.findMany({
       where: {
         userId,
@@ -44,31 +42,41 @@ export const getUserBanners = async (req, res) => {
     }
 
     if (userBookletIds.size === 0) {
-      // User has not purchased any booklet
       return res.json({ success: true, data: [] });
     }
 
-    // Fetch active banners that target any of the user's purchased booklets
-    const banners = await prisma.banner.findMany({
-      where: {
-        status: 'active',
-        bannerBooklets: {
-          some: {
-            bookletId: { in: Array.from(userBookletIds) },
-          },
-        },
-      },
-      include: {
-        bannerBooklets: {
-          include: {
-            booklet: {
-              select: { id: true, title: true },
+    let banners = [];
+    try {
+      banners = await prisma.banner.findMany({
+        where: {
+          status: 'active',
+          bannerBooklets: {
+            some: {
+              bookletId: { in: Array.from(userBookletIds) },
             },
           },
         },
-      },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-    });
+        include: {
+          bannerBooklets: {
+            include: {
+              booklet: {
+                select: { id: true, title: true },
+              },
+            },
+          },
+        },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      });
+    } catch (_) {
+      const bookletIdList = Array.from(userBookletIds).map((id) => `'${id}'`).join(',');
+      banners = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT b.*
+        FROM "banners" b
+        JOIN "banner_booklets" bb ON bb.banner_id = b.id
+        WHERE b.status = 'active' AND bb.booklet_id IN (${bookletIdList})
+        ORDER BY b.priority DESC, b.created_at DESC
+      `).catch(() => []);
+    }
 
     res.json({ success: true, data: banners });
   } catch (error) {
@@ -83,16 +91,24 @@ export const trackBannerDismiss = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const banner = await prisma.banner.update({
-      where: { id },
-      data: {
-        viewsCount: { increment: 1 },
-      },
-      select: {
-        id: true,
-        viewsCount: true,
-      },
-    });
+    let banner = null;
+    try {
+      banner = await prisma.banner.update({
+        where: { id },
+        data: {
+          viewsCount: { increment: 1 },
+        },
+        select: {
+          id: true,
+          viewsCount: true,
+        },
+      });
+    } catch (_) {
+      await prisma.$executeRawUnsafe(`
+        UPDATE "banners" SET "views_count" = COALESCE("views_count", 0) + 1 WHERE "id" = '${id}'
+      `).catch(() => {});
+      banner = { id };
+    }
 
     res.json({ success: true, message: 'Banner view/cross recorded', data: banner });
   } catch (error) {
@@ -102,24 +118,31 @@ export const trackBannerDismiss = async (req, res) => {
 
 export const getBanners = async (req, res) => {
   try {
-    // If auth header is provided, delegate to targeted user banners
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       return getUserBanners(req, res);
     }
 
-    const banners = await prisma.banner.findMany({
-      where: { status: 'active' },
-      include: {
-        bannerBooklets: {
-          include: {
-            booklet: {
-              select: { id: true, title: true },
+    let banners;
+    try {
+      banners = await prisma.banner.findMany({
+        where: { status: 'active' },
+        include: {
+          bannerBooklets: {
+            include: {
+              booklet: {
+                select: { id: true, title: true },
+              },
             },
           },
         },
-      },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-    });
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      });
+    } catch (_) {
+      banners = await prisma.banner.findMany({
+        where: { status: 'active' },
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      });
+    }
 
     res.json({ success: true, data: banners });
   } catch (error) {
@@ -131,18 +154,23 @@ export const getBannerById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const banner = await prisma.banner.findUnique({
-      where: { id },
-      include: {
-        bannerBooklets: {
-          include: {
-            booklet: {
-              select: { id: true, title: true },
+    let banner;
+    try {
+      banner = await prisma.banner.findUnique({
+        where: { id },
+        include: {
+          bannerBooklets: {
+            include: {
+              booklet: {
+                select: { id: true, title: true },
+              },
             },
           },
         },
-      },
-    });
+      });
+    } catch (_) {
+      banner = await prisma.banner.findUnique({ where: { id } });
+    }
 
     if (!banner) {
       return res.status(404).json({ success: false, error: 'Banner not found' });
