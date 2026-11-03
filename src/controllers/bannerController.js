@@ -183,14 +183,55 @@ export const getBannerById = async (req, res) => {
 };
 
 /**
- * Returns active landscape banners for the Home Screen.
+ * Returns active landscape banners for the Home Screen targeted to user's purchased booklets.
  */
 export const getLandscapeBanners = async (req, res) => {
   try {
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = verifyToken(token);
+        if (decoded && decoded.id) {
+          userId = decoded.id;
+        }
+      } catch (_) {}
+    }
+
+    if (!userId) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        userId,
+        status: 'completed',
+        items: { some: { itemType: 'booklet' } },
+      },
+      include: {
+        items: { where: { itemType: 'booklet' } },
+      },
+    });
+
+    const userBookletIds = new Set();
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (item.itemId) userBookletIds.add(item.itemId);
+      }
+    }
+
+    if (userBookletIds.size === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const bookletIdList = Array.from(userBookletIds).map((id) => `'${id}'`).join(',');
     const banners = await prisma.$queryRawUnsafe(`
-      SELECT * FROM "banners"
-      WHERE "status" = 'active' AND "type" = 'landscape'
-      ORDER BY "priority" DESC, "created_at" DESC
+      SELECT DISTINCT b.*
+      FROM "banners" b
+      JOIN "banner_booklets" bb ON bb.banner_id = b.id
+      WHERE b.status = 'active' AND b.type = 'landscape' AND bb.booklet_id IN (${bookletIdList})
+      ORDER BY b.priority DESC, b.created_at DESC
     `).catch(() => []);
 
     const formatted = banners.map((b) => ({
