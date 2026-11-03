@@ -45,8 +45,19 @@ export const getUserBanners = async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
+    const bookletIdList = Array.from(userBookletIds).map((id) => `'${id}'`).join(',');
     let banners = [];
     try {
+      banners = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT b.*
+        FROM "banners" b
+        JOIN "banner_booklets" bb ON bb.banner_id = b.id
+        WHERE b.status = 'active'
+          AND (b.type = 'popup' OR b.type IS NULL)
+          AND bb.booklet_id IN (${bookletIdList})
+        ORDER BY b.priority DESC, b.created_at DESC
+      `);
+    } catch (_) {
       banners = await prisma.banner.findMany({
         where: {
           status: 'active',
@@ -67,18 +78,26 @@ export const getUserBanners = async (req, res) => {
         },
         orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
       });
-    } catch (_) {
-      const bookletIdList = Array.from(userBookletIds).map((id) => `'${id}'`).join(',');
-      banners = await prisma.$queryRawUnsafe(`
-        SELECT DISTINCT b.*
-        FROM "banners" b
-        JOIN "banner_booklets" bb ON bb.banner_id = b.id
-        WHERE b.status = 'active' AND bb.booklet_id IN (${bookletIdList})
-        ORDER BY b.priority DESC, b.created_at DESC
-      `).catch(() => []);
     }
 
-    res.json({ success: true, data: banners });
+    // STRICT: Only return popup banners for the popup dialog. Never return landscape banners.
+    const popupOnly = banners
+      .filter((b) => b.type !== 'landscape')
+      .map((b) => ({
+        id: b.id,
+        image: b.image,
+        mediaType: b.media_type || b.mediaType || 'image',
+        viewsCount: b.views_count ?? b.viewsCount ?? 0,
+        type: 'popup',
+        redirectType: b.redirect_type || b.redirectType || 'none',
+        redirectId: b.redirect_id ?? b.redirectId ?? null,
+        priority: b.priority || 0,
+        status: b.status || 'active',
+        createdAt: b.created_at ?? b.createdAt,
+        updatedAt: b.updated_at ?? b.updatedAt,
+      }));
+
+    res.json({ success: true, data: popupOnly });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
