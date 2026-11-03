@@ -43,7 +43,7 @@ export const createBanner = async (req, res) => {
         },
       });
     } catch (createErr) {
-      if (createErr.message?.includes('mediaType')) {
+      try {
         banner = await prisma.banner.create({
           data: {
             image,
@@ -55,8 +55,22 @@ export const createBanner = async (req, res) => {
         });
         await prisma.$executeRawUnsafe(`UPDATE "banners" SET "media_type" = '${mediaType}' WHERE "id" = '${banner.id}'`).catch(() => {});
         banner.mediaType = mediaType;
-      } else {
-        throw createErr;
+      } catch (rawErr) {
+        const idRes = await prisma.$queryRawUnsafe(`SELECT gen_random_uuid()::text as id`);
+        const id = idRes[0]?.id || Date.now().toString();
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "banners" ("id", "image", "media_type", "redirect_type", "redirect_id", "priority", "status", "created_at", "updated_at")
+          VALUES ('${id}', '${image}', '${mediaType}', '${redirect_type || 'none'}', ${redirect_id ? `'${redirect_id}'` : 'NULL'}, ${priority !== undefined ? (parseInt(priority, 10) || 0) : 0}, '${status || 'active'}', NOW(), NOW())
+        `);
+        banner = {
+          id,
+          image,
+          mediaType,
+          redirectType: redirect_type || 'none',
+          redirectId: redirect_id || null,
+          priority: priority !== undefined ? (parseInt(priority, 10) || 0) : 0,
+          status: status || 'active',
+        };
       }
     }
 
@@ -128,10 +142,16 @@ export const getBanners = async (req, res) => {
         orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
       });
     } catch (_) {
-      banners = await prisma.banner.findMany({
-        where,
-        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
-      });
+      try {
+        banners = await prisma.banner.findMany({
+          where,
+          orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+        });
+      } catch (__) {
+        banners = await prisma.$queryRawUnsafe(`
+          SELECT * FROM "banners" ${status ? `WHERE "status" = '${status}'` : ''} ORDER BY "priority" DESC, "created_at" DESC
+        `).catch(() => []);
+      }
       try {
         const allBannerBooklets = await prisma.$queryRawUnsafe(`
           SELECT bb.banner_id, bb.booklet_id, b.title as booklet_title
@@ -149,7 +169,7 @@ export const getBanners = async (req, res) => {
         for (const b of banners) {
           b.bannerBooklets = map[b.id] || [];
         }
-      } catch (__) {}
+      } catch (___) {}
     }
 
     for (const b of banners) {
