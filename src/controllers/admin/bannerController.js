@@ -22,7 +22,7 @@ function detectMediaType(url, explicitType) {
 
 export const createBanner = async (req, res) => {
   try {
-    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status } = req.body;
+    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type = 'popup' } = req.body;
 
     if (!image) {
       return res.status(400).json({ success: false, error: 'Media URL/image is required' });
@@ -59,8 +59,8 @@ export const createBanner = async (req, res) => {
         const idRes = await prisma.$queryRawUnsafe(`SELECT gen_random_uuid()::text as id`);
         const id = idRes[0]?.id || Date.now().toString();
         await prisma.$executeRawUnsafe(`
-          INSERT INTO "banners" ("id", "image", "media_type", "redirect_type", "redirect_id", "priority", "status", "created_at", "updated_at")
-          VALUES ('${id}', '${image}', '${mediaType}', '${redirect_type || 'none'}', ${redirect_id ? `'${redirect_id}'` : 'NULL'}, ${priority !== undefined ? (parseInt(priority, 10) || 0) : 0}, '${status || 'active'}', NOW(), NOW())
+          INSERT INTO "banners" ("id", "image", "media_type", "redirect_type", "redirect_id", "priority", "status", "type", "created_at", "updated_at")
+          VALUES ('${id}', '${image}', '${mediaType}', '${redirect_type || 'none'}', ${redirect_id ? `'${redirect_id}'` : 'NULL'}, ${priority !== undefined ? (parseInt(priority, 10) || 0) : 0}, '${status || 'active'}', '${type}', NOW(), NOW())
         `);
         banner = {
           id,
@@ -70,9 +70,14 @@ export const createBanner = async (req, res) => {
           redirectId: redirect_id || null,
           priority: priority !== undefined ? (parseInt(priority, 10) || 0) : 0,
           status: status || 'active',
+          type,
         };
       }
     }
+
+    // Set type explicitly in DB
+    await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${banner.id}'`).catch(() => {});
+    banner.type = type;
 
     // Link target booklets
     if (Array.isArray(booklet_ids) && booklet_ids.length > 0) {
@@ -121,7 +126,7 @@ export const createBanner = async (req, res) => {
 
 export const getBanners = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, type } = req.query;
 
     const where = {};
     if (status) where.status = status;
@@ -172,9 +177,23 @@ export const getBanners = async (req, res) => {
       } catch (___) {}
     }
 
+    // Enrich with type from DB
+    const typeMap = {};
+    try {
+      const types = await prisma.$queryRawUnsafe(`SELECT id, type FROM "banners"`);
+      for (const r of types) {
+        typeMap[r.id] = r.type || 'popup';
+      }
+    } catch (____) {}
+
     for (const b of banners) {
       if (!b.mediaType) b.mediaType = detectMediaType(b.image);
       if (b.viewsCount === undefined) b.viewsCount = 0;
+      b.type = typeMap[b.id] || b.type || 'popup';
+    }
+
+    if (type) {
+      banners = banners.filter((b) => b.type === type);
     }
 
     res.json({ success: true, data: banners });
@@ -218,11 +237,15 @@ export const getBannerById = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status } = req.body;
+    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type } = req.body;
 
     const banner = await prisma.banner.findUnique({ where: { id } });
     if (!banner) {
       return res.status(404).json({ success: false, error: 'Banner not found' });
+    }
+
+    if (type !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${id}'`).catch(() => {});
     }
 
     const mediaType = image ? detectMediaType(image, media_type) : (media_type || banner.mediaType);

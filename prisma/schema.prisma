@@ -339,6 +339,7 @@ model Banner {
   image          String
   mediaType      String          @default("image") @map("media_type")
   viewsCount     Int             @default(0) @map("views_count")
+  type           String          @default("popup")
   redirectType   String          @default("none") @map("redirect_type")
   redirectId     String?         @map("redirect_id")
   priority       Int             @default(0)

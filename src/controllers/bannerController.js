@@ -181,3 +181,34 @@ export const getBannerById = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+/**
+ * Returns active landscape banners for the Home Screen.
+ */
+export const getLandscapeBanners = async (req, res) => {
+  try {
+    const banners = await prisma.$queryRawUnsafe(`
+      SELECT * FROM "banners"
+      WHERE "status" = 'active' AND "type" = 'landscape'
+      ORDER BY "priority" DESC, "created_at" DESC
+    `).catch(() => []);
+
+    const formatted = banners.map((b) => ({
+      id: b.id,
+      image: b.image,
+      mediaType: b.media_type || 'image',
+      viewsCount: b.views_count || 0,
+      redirectType: b.redirect_type || 'none',
+      redirectId: b.redirect_id || null,
+      priority: b.priority || 0,
+      status: b.status || 'active',
+      type: b.type || 'landscape',
+      createdAt: b.created_at,
+      updatedAt: b.updated_at,
+    }));
+
+    res.json({ success: true, data: formatted });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
