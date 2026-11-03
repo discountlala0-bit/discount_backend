@@ -66,6 +66,7 @@ model Booklet {
   bookletOffers     BookletOffer[]
   bookletCategories BookletCategory[]
   bookletPlaces     BookletPlace[]
+  bannerBooklets    BannerBooklet[]
 
   @@index([cityId])
   @@map("booklets")
@@ -334,16 +335,33 @@ model AddOnCategory {
 }
 
 model Banner {
-  id           String   @id @default(uuid())
-  image        String
-  redirectType String   @map("redirect_type")
-  redirectId   String?  @map("redirect_id")
-  priority     Int      @default(0)
-  status       String   @default("active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id             String          @id @default(uuid())
+  image          String
+  mediaType      String          @default("image") @map("media_type")
+  viewsCount     Int             @default(0) @map("views_count")
+  redirectType   String          @default("none") @map("redirect_type")
+  redirectId     String?         @map("redirect_id")
+  priority       Int             @default(0)
+  status         String          @default("active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  bannerBooklets BannerBooklet[]
 
   @@map("banners")
+}
+
+model BannerBooklet {
+  id        String   @id @default(uuid())
+  bannerId  String   @map("banner_id")
+  bookletId String   @map("booklet_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  banner    Banner   @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+  booklet   Booklet  @relation(fields: [bookletId], references: [id], onDelete: Cascade)
+
+  @@unique([bannerId, bookletId])
+  @@index([bannerId])
+  @@index([bookletId])
+  @@map("banner_booklets")
 }
 
 model TermsAndConditions {
