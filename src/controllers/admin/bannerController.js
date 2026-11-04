@@ -188,7 +188,7 @@ export const getBanners = async (req, res) => {
 
     for (const b of banners) {
       if (!b.mediaType) b.mediaType = detectMediaType(b.image);
-      if (b.viewsCount === undefined) b.viewsCount = 0;
+      b.viewsCount = b.viewsCount ?? b.views_count ?? 0;
       b.type = typeMap[b.id] || b.type || 'popup';
     }
 
