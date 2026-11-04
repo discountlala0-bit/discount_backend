@@ -79,6 +79,19 @@ export const createBanner = async (req, res) => {
     await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${banner.id}'`).catch(() => {});
     banner.type = type;
 
+    // Ensure mutual exclusion: only one banner type (Popup OR Landscape) can be active at a time
+    if (status === 'active' || banner.status === 'active') {
+      if (type === 'landscape') {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "banners" SET "status" = 'inactive' WHERE ("type" = 'popup' OR "type" IS NULL) AND "id" != '${banner.id}'
+        `).catch(() => {});
+      } else {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "banners" SET "status" = 'inactive' WHERE "type" = 'landscape' AND "id" != '${banner.id}'
+        `).catch(() => {});
+      }
+    }
+
     // Link target booklets
     if (Array.isArray(booklet_ids) && booklet_ids.length > 0) {
       try {
@@ -246,6 +259,20 @@ export const updateBanner = async (req, res) => {
 
     if (type !== undefined) {
       await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${id}'`).catch(() => {});
+    }
+
+    // Ensure mutual exclusion: only one banner type (Popup OR Landscape) can be active at a time
+    if (status === 'active') {
+      const bannerType = type || banner.type || 'popup';
+      if (bannerType === 'landscape') {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "banners" SET "status" = 'inactive' WHERE ("type" = 'popup' OR "type" IS NULL) AND "id" != '${id}'
+        `).catch(() => {});
+      } else {
+        await prisma.$executeRawUnsafe(`
+          UPDATE "banners" SET "status" = 'inactive' WHERE "type" = 'landscape' AND "id" != '${id}'
+        `).catch(() => {});
+      }
     }
 
     const mediaType = image ? detectMediaType(image, media_type) : (media_type || banner.mediaType);
