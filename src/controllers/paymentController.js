@@ -283,6 +283,147 @@ export const handleFailedPayment = async (req, res) => {
   }
 };
 
+// Razorpay Webhook Handler (Direct Server-to-Server from Razorpay)
+export const handleRazorpayWebhook = async (req, res) => {
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    // Verify signature if webhook secret is configured
+    if (webhookSecret && signature) {
+      const crypto = await import('crypto');
+      const rawPayload = req.rawBody ? req.rawBody.toString() : JSON.stringify(req.body);
+      const expectedSignature = crypto.default
+        .createHmac('sha256', webhookSecret)
+        .update(rawPayload)
+        .digest('hex');
+
+      if (expectedSignature !== signature) {
+        console.error('Razorpay Webhook: Invalid signature', { expectedSignature, signature });
+        return res.status(400).json({ success: false, error: 'Invalid webhook signature' });
+      }
+    } else if (signature && !webhookSecret) {
+      // If secret not configured in env, try with key secret or log warning
+      const crypto = await import('crypto');
+      const fallbackSecret = process.env.RAZORPAY_KEY_SECRET;
+      const rawPayload = req.rawBody ? req.rawBody.toString() : JSON.stringify(req.body);
+      const expectedSignature = fallbackSecret
+        ? crypto.default.createHmac('sha256', fallbackSecret).update(rawPayload).digest('hex')
+        : null;
+
+      if (expectedSignature && expectedSignature !== signature) {
+        console.warn('Razorpay Webhook: RAZORPAY_WEBHOOK_SECRET not set in env, signature mismatch with fallback secret');
+      }
+    }
+
+    const event = req.body?.event;
+    console.log(`[Razorpay Webhook] Received event: ${event}`);
+
+    if (event === 'payment.captured' || event === 'order.paid') {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const orderEntity = req.body?.payload?.order?.entity;
+
+      // Extract our internal order ID from notes or receipt
+      const orderId =
+        paymentEntity?.notes?.order_id ||
+        orderEntity?.notes?.order_id ||
+        (paymentEntity?.receipt && paymentEntity.receipt.startsWith('receipt_')
+          ? paymentEntity.receipt.replace('receipt_', '')
+          : null);
+
+      const paymentId = paymentEntity?.id || null;
+
+      if (!orderId) {
+        console.warn('[Razorpay Webhook] Could not determine internal order_id from payload', req.body);
+        return res.status(200).json({ success: true, message: 'No internal orderId found' });
+      }
+
+      console.log(`[Razorpay Webhook] Processing fulfillment for Order ID: ${orderId}, Payment ID: ${paymentId}`);
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+
+      if (!order) {
+        console.warn(`[Razorpay Webhook] Order ${orderId} not found in database`);
+        return res.status(200).json({ success: true, message: 'Order not found' });
+      }
+
+      // Check if already completed (idempotent handling)
+      if (order.status === 'completed') {
+        console.log(`[Razorpay Webhook] Order ${orderId} was already completed. Skipping duplicate fulfillment.`);
+        return res.status(200).json({ success: true, message: 'Order already completed' });
+      }
+
+      // Create payment record
+      await prisma.payment.create({
+        data: {
+          orderId: order.id,
+          paymentMethod: 'razorpay',
+          transactionId: paymentId,
+          paymentStatus: 'success',
+        },
+      }).catch((e) => {
+        console.error('[Razorpay Webhook] Error recording payment:', e.message);
+      });
+
+      // Update order status to completed
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'completed' },
+      });
+
+      // Generate user coupons
+      try {
+        await createCouponsForCompletedOrder(order.id, order.userId);
+        console.log(`[Razorpay Webhook] Generated coupons for order ${order.id}`);
+      } catch (couponErr) {
+        console.error('[Razorpay Webhook] Error generating coupons:', couponErr.message);
+      }
+
+      // Update user hasBooklet if order contains booklet
+      const hasBookletItem = order.items.some((item) => item.itemType === 'booklet');
+      if (hasBookletItem) {
+        await prisma.user.update({
+          where: { id: order.userId },
+          data: { hasBooklet: true },
+        }).catch(() => {});
+      }
+
+      // Clear user cart
+      const cart = await prisma.cart.findUnique({ where: { userId: order.userId } });
+      if (cart) {
+        await prisma.cartItem.deleteMany({ where: { cartId: cart.id } }).catch(() => {});
+      }
+
+      console.log(`[Razorpay Webhook] Order ${order.id} completely fulfilled!`);
+    } else if (event === 'payment.failed') {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const orderId = paymentEntity?.notes?.order_id;
+      if (orderId) {
+        const order = await prisma.order.findUnique({ where: { id: orderId } });
+        if (order && order.status !== 'completed') {
+          await prisma.payment.create({
+            data: {
+              orderId,
+              paymentMethod: 'razorpay',
+              transactionId: paymentEntity?.id || null,
+              paymentStatus: 'failed',
+            },
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    console.error('[Razorpay Webhook] Handler error:', error);
+    // Always return 200 to prevent Razorpay from flooding retries on syntax error
+    return res.status(200).json({ status: 'error', error: error.message });
+  }
+};
+
 // Old createPayment function (keeping for compatibility)
 export const createPayment = async (req, res) => {
   try {
