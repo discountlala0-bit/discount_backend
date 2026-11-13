@@ -3,6 +3,7 @@ import {
   createRazorpayOrder,
   verifyRazorpayPayment,
   handleFailedPayment,
+  handleRazorpayWebhook,
   createPayment,
   updatePaymentStatus,
   getPaymentsByOrder,
@@ -13,7 +14,10 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All payment routes require authentication
+// Razorpay Webhook endpoint (MUST be public so Razorpay server can deliver events)
+router.post('/razorpay/webhook', handleRazorpayWebhook);
+
+// All subsequent payment routes require authentication
 router.use(authMiddleware);
 
 // Razorpay endpoints
