@@ -22,13 +22,14 @@ function detectMediaType(url, explicitType) {
 
 export const createBanner = async (req, res) => {
   try {
-    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type = 'popup' } = req.body;
+    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type = 'popup', timer } = req.body;
 
     if (!image) {
       return res.status(400).json({ success: false, error: 'Media URL/image is required' });
     }
 
     const mediaType = detectMediaType(image, media_type);
+    const timerVal = timer !== undefined && timer !== null && timer !== '' ? Math.max(0, parseInt(timer, 10)) : 5;
 
     let banner;
     try {
@@ -75,9 +76,10 @@ export const createBanner = async (req, res) => {
       }
     }
 
-    // Set type explicitly in DB
-    await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${banner.id}'`).catch(() => {});
+    // Set type and timer explicitly in DB
+    await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}', "timer" = ${timerVal} WHERE "id" = '${banner.id}'`).catch(() => {});
     banner.type = type;
+    banner.timer = timerVal;
 
     // Link target booklets
     if (Array.isArray(booklet_ids) && booklet_ids.length > 0) {
@@ -177,19 +179,23 @@ export const getBanners = async (req, res) => {
       } catch (___) {}
     }
 
-    // Enrich with type from DB
-    const typeMap = {};
+    // Enrich with type and timer from DB
+    const extraMap = {};
     try {
-      const types = await prisma.$queryRawUnsafe(`SELECT id, type FROM "banners"`);
-      for (const r of types) {
-        typeMap[r.id] = r.type || 'popup';
+      const rows = await prisma.$queryRawUnsafe(`SELECT id, type, timer FROM "banners"`);
+      for (const r of rows) {
+        extraMap[r.id] = {
+          type: r.type || 'popup',
+          timer: r.timer !== null && r.timer !== undefined ? r.timer : 5,
+        };
       }
     } catch (____) {}
 
     for (const b of banners) {
       if (!b.mediaType) b.mediaType = detectMediaType(b.image);
       b.viewsCount = b.viewsCount ?? b.views_count ?? 0;
-      b.type = typeMap[b.id] || b.type || 'popup';
+      b.type = extraMap[b.id]?.type || b.type || 'popup';
+      b.timer = b.timer ?? extraMap[b.id]?.timer ?? 5;
     }
 
     if (type) {
@@ -237,7 +243,7 @@ export const getBannerById = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type } = req.body;
+    const { image, media_type, booklet_ids, redirect_type, redirect_id, priority, status, type, timer } = req.body;
 
     const banner = await prisma.banner.findUnique({ where: { id } });
     if (!banner) {
@@ -246,6 +252,11 @@ export const updateBanner = async (req, res) => {
 
     if (type !== undefined) {
       await prisma.$executeRawUnsafe(`UPDATE "banners" SET "type" = '${type}' WHERE "id" = '${id}'`).catch(() => {});
+    }
+
+    if (timer !== undefined) {
+      const timerVal = timer !== null && timer !== '' ? Math.max(0, parseInt(timer, 10)) : 5;
+      await prisma.$executeRawUnsafe(`UPDATE "banners" SET "timer" = ${timerVal} WHERE "id" = '${id}'`).catch(() => {});
     }
 
     const mediaType = image ? detectMediaType(image, media_type) : (media_type || banner.mediaType);

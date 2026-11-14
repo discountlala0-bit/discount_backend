@@ -89,6 +89,7 @@ export const getUserBanners = async (req, res) => {
         mediaType: b.media_type || b.mediaType || 'image',
         viewsCount: b.views_count ?? b.viewsCount ?? 0,
         type: 'popup',
+        timer: b.timer !== null && b.timer !== undefined ? b.timer : 5,
         redirectType: b.redirect_type || b.redirectType || 'none',
         redirectId: b.redirect_id ?? b.redirectId ?? null,
         priority: b.priority || 0,
