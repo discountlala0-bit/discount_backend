@@ -13,14 +13,18 @@ export const getUserCoupons = async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
 
     const where = { userId };
-    if (status) where.status = status;
+    if (status) where.status = status.toLowerCase();
+
+    const orderBy = (status && status.toLowerCase() === 'redeemed')
+      ? [{ redeemedAt: 'desc' }, { createdAt: 'desc' }]
+      : { createdAt: 'desc' };
 
     const [coupons, total] = await Promise.all([
       prisma.userCoupon.findMany({
         where,
         relationLoadStrategy: 'join',
         include: { offer: { include: { place: true } }, user: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: (pageNum - 1) * limitNum,
         take: limitNum,
       }),
