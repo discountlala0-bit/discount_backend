@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma.js';
 import { verifyToken } from '../../lib/jwt.js';
+import { ensureUserBookletCoupons } from '../lib/couponGeneration.js';
 
 function sortBookletOffers(bookletOffers, bookletPlaces = []) {
   if (!bookletOffers || bookletOffers.length === 0) return;
@@ -343,10 +344,16 @@ export const getPurchasedBooklets = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Ensure all booklet coupons exist for this user in DB
+    await ensureUserBookletCoupons(userId);
+
     const orders = await prisma.order.findMany({
       where: {
         userId,
-        status: 'completed',
+        OR: [
+          { status: { in: ['completed', 'Completed', 'COMPLETED', 'paid', 'PAID', 'success', 'SUCCESS'] } },
+          { payments: { some: { paymentStatus: { in: ['success', 'SUCCESS', 'completed', 'Completed'] } } } },
+        ],
         items: { some: { itemType: 'booklet' } },
       },
       include: {
@@ -361,6 +368,23 @@ export const getPurchasedBooklets = async (req, res) => {
       for (const item of order.items) {
         if (!purchaseMap.has(item.itemId)) {
           purchaseMap.set(item.itemId, order.createdAt);
+        }
+      }
+    }
+
+    if (purchaseMap.size === 0) {
+      // Fallback: If user has hasBooklet: true, find active booklets
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { hasBooklet: true, cityId: true, createdAt: true },
+      });
+      if (user?.hasBooklet) {
+        const activeBooklets = await prisma.booklet.findMany({
+          where: user.cityId ? { cityId: user.cityId, status: 'active' } : { status: 'active' },
+          select: { id: true, createdAt: true },
+        });
+        for (const b of activeBooklets) {
+          purchaseMap.set(b.id, b.createdAt || user.createdAt);
         }
       }
     }
